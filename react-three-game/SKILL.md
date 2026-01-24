@@ -61,6 +61,19 @@ function AgentExporter() {
 
 ## Core Concepts
 
+### Asset Paths and Public Directory
+
+**All asset paths are relative to `/public`** and omit the `/public` prefix:
+
+```json
+{
+  "texture": "/textures/floor.png",
+  "model": "/models/car.glb",
+  "font": "/fonts/font.ttf"
+}
+```
+
+Path `"/any/path/file.ext"` refers to `/public/any/path/file.ext`.
 ### GameObject Structure
 
 Every game object follows this schema:
@@ -108,7 +121,16 @@ Scenes are defined as JSON prefabs with a root node containing children:
 | Model | `Model` | `filename` (GLB/FBX path), `instanced?` for GPU batching |
 | SpotLight | `SpotLight` | `color`, `intensity`, `angle`, `penumbra`, `distance?`, `castShadow?` |
 | DirectionalLight | `DirectionalLight` | `color`, `intensity`, `castShadow?`, `targetOffset?: [x,y,z]` |
+| AmbientLight | `AmbientLight` | `color`, `intensity` |
 | Text | `Text` | `text`, `font`, `size`, `depth`, `width`, `align`, `color` |
+
+### Text Component
+
+Requires `hb.wasm` and a font file (TTF/WOFF) in `/public/fonts/`:
+- hb.wasm: https://github.com/prnthh/react-three-game/raw/refs/heads/main/docs/public/fonts/hb.wasm
+- Sample font: https://github.com/prnthh/react-three-game/raw/refs/heads/main/docs/public/fonts/NotoSans-Regular.ttf
+
+Font property: `"font": "/fonts/NotoSans-Regular.ttf"`
 
 ### Geometry Args by Type
 
@@ -119,41 +141,31 @@ Scenes are defined as JSON prefabs with a root node containing children:
 | `plane` | `[width, height]` |
 | `cylinder` | `[radiusTop, radiusBottom, height, radialSegments]` |
 
-### Material Texture Options
+### Material Textures
 
 ```json
 {
-  "type": "Material",
-  "properties": {
-    "color": "white",
-    "texture": "/textures/path/to/texture.png",
-    "repeat": true,
-    "repeatCount": [4, 4]
+  "material": {
+    "type": "Material",
+    "properties": {
+      "color": "white",
+      "texture": "/textures/floor.png",
+      "repeat": true,
+      "repeatCount": [4, 4]
+    }
   }
 }
 ```
 
-- Use `"color": "white"` with textures for accurate texture colors
-- `repeatCount: [x, y]` tiles the texture; match to geometry dimensions for proper scaling
+### Rotations
 
-### Rotation Reference
-
-Rotations use radians. Common values:
-- `1.57` = 90° (π/2)
-- `3.14` = 180° (π)
-- `-1.57` = -90° (rotate plane flat: `rotation: [-1.57, 0, 0]`)
+Use radians: `1.57` = 90°, `3.14` = 180°, `-1.57` = -90°
 
 ## Common Patterns
 
 ### Usage Modes
 
-The library supports two modes:
-
-**Play Mode** (default) - Immediate rendering without any editor UI. Use `GameCanvas` with `PrefabRoot` for a clean game experience.
-
-**Editor Mode** - Visual GUI using `PrefabEditor` for scene inspection and custom component development. See the [Editor Mode](#editor-mode) section at the end of this document.
-
-### Basic Scene Setup (Play Mode)
+**GameCanvas + PrefabRoot**: Production gameplay. Requires explicit `<Physics>` wrapper. Physics always active. Can compose with other R3F components. For headless mode, use `<PrefabRoot>` without GameCanvas.
 
 ```jsx
 import { Physics } from '@react-three/rapier';
@@ -166,83 +178,56 @@ import { GameCanvas, PrefabRoot } from 'react-three-game';
 </GameCanvas>
 ```
 
-### Tree Manipulation Utilities
+**PrefabEditor**: Level editors, scene authoring, prototyping. Includes canvas, physics, UI. Physics activates in play mode only.
+
+```jsx
+import { PrefabEditor } from 'react-three-game';
+
+<PrefabEditor initialPrefab={prefabData} />
+```
+
+### Tree Utilities
 
 ```typescript
-import { findNode, updateNode, updateNodeById, deleteNode, cloneNode, saveJson, loadJson, exportGLB, exportGLBData } from 'react-three-game';
+import { updateNodeById, findNode, deleteNode, cloneNode, exportGLBData } from 'react-three-game';
 
-// Update a node by ID (optimized - avoids unnecessary object creation)
 const updated = updateNodeById(root, nodeId, node => ({ ...node, disabled: true }));
-
-// Find a node
 const node = findNode(root, nodeId);
-
-// Delete a node
 const afterDelete = deleteNode(root, nodeId);
-
-// Clone a node
 const cloned = cloneNode(node);
-
-// Save/load JSON
-saveJson(prefab, 'my-scene');
-const loaded = await loadJson();
-
-// Export to GLB
-await exportGLB(sceneRoot, { filename: 'my-scene.glb' });
-const glbData = await exportGLBData(sceneRoot); // Returns ArrayBuffer
+const glbData = await exportGLBData(sceneRoot);
 ```
 
-## Building Game Levels
+## Level Patterns
 
-### Complete Prefab Structure
+### Floor
 
 ```json
 {
-  "id": "level-id",
-  "name": "Level Name",
-  "root": {
-    "id": "root",
-    "enabled": true,
-    "visible": true,
-    "components": { ... },
-    "children": [ ... ]
-  }
-}
-```
-
-### Floor/Ground Pattern
-
-```json
-{
-  "id": "main-floor",
+  "id": "floor",
   "components": {
     "transform": { "type": "Transform", "properties": { "position": [0, -0.5, 0] } },
     "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [40, 1, 40] } },
-    "material": { "type": "Material", "properties": { "color": "white", "texture": "/textures/GreyboxTextures/greybox_dark_grid.png", "repeat": true, "repeatCount": [20, 20] } },
+    "material": { "type": "Material", "properties": { "texture": "/textures/floor.png", "repeat": true, "repeatCount": [20, 20] } },
     "physics": { "type": "Physics", "properties": { "type": "fixed" } }
   }
 }
 ```
 
-### Platform Pattern
-
-Floating platforms use "fixed" physics and smaller box geometry:
+### Platform
 
 ```json
 {
-  "id": "platform-1",
+  "id": "platform",
   "components": {
     "transform": { "type": "Transform", "properties": { "position": [-8, 2, -5] } },
     "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [6, 0.5, 4] } },
-    "material": { "type": "Material", "properties": { "color": "white", "texture": "/textures/GreyboxTextures/greybox_teal_grid.png", "repeat": true, "repeatCount": [3, 2] } },
     "physics": { "type": "Physics", "properties": { "type": "fixed" } }
   }
 }
 ```
 
-### Ramp Pattern
-
-Rotate on the Z-axis to create inclined surfaces:
+### Ramp
 
 ```json
 {
@@ -256,12 +241,11 @@ Rotate on the Z-axis to create inclined surfaces:
 ```
 
 ### Wall Pattern
-
-Tall thin boxes positioned at boundaries:
+### Wall
 
 ```json
 {
-  "id": "wall-back",
+  "id": "wall",
   "components": {
     "transform": { "type": "Transform", "properties": { "position": [0, 3, -20] } },
     "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [40, 7, 1] } },
@@ -270,128 +254,64 @@ Tall thin boxes positioned at boundaries:
 }
 ```
 
-### Three-Point Lighting Setup
-
-Good lighting uses main, fill, and accent lights:
+### Lighting
 
 ```json
 [
-  { "id": "main-light", "components": { "transform": { "properties": { "position": [10, 15, 10] } }, "spotlight": { "type": "SpotLight", "properties": { "color": "#ffffff", "intensity": 200, "angle": 0.8, "castShadow": true } } } },
-  { "id": "fill-light", "components": { "transform": { "properties": { "position": [-10, 12, -5] } }, "spotlight": { "type": "SpotLight", "properties": { "color": "#b0c4de", "intensity": 80, "angle": 0.9 } } } },
-  { "id": "accent-light", "components": { "transform": { "properties": { "position": [0, 10, -15] } }, "spotlight": { "type": "SpotLight", "properties": { "color": "#ffd700", "intensity": 50, "angle": 0.4 } } } }
+  { "id": "spot", "components": { "transform": { "properties": { "position": [10, 15, 10] } }, "spotlight": { "type": "SpotLight", "properties": { "intensity": 200, "angle": 0.8, "castShadow": true } } } },
+  { "id": "ambient", "components": { "ambientlight": { "type": "AmbientLight", "properties": { "intensity": 0.4 } } } }
 ]
 ```
 
-### Available Greybox Textures
-
-Located in `/textures/GreyboxTextures/`:
-- `greybox_dark_grid.png` - dark floors
-- `greybox_light_grid.png` - light surfaces
-- `greybox_teal_grid.png`, `greybox_purple_grid.png`, `greybox_orange_grid.png` - colored platforms
-- `greybox_red_grid.png`, `greybox_blue_grid.png` - obstacles/hazards
-- `greybox_yellow_grid.png`, `greybox_lime_grid.png`, `greybox_green_grid.png` - special areas
-
-### Metallic/Special Materials
-
-For goal platforms or special objects, use metalness and roughness:
+### Text
 
 ```json
 {
-  "type": "Material",
-  "properties": {
-    "color": "#FFD700",
-    "metalness": 0.8,
-    "roughness": 0.2
-  }
-}
-```
-
-### Text Component
-
-3D text rendering using `three-text`. The Text component is non-composable (cannot have children).
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `text` | string | `"Hello World"` | Text content to display |
-| `color` | string | `"#888888"` | Text color (hex or CSS color) |
-| `font` | string | `"/fonts/NotoSans-Regular.ttf"` | Path to TTF font file |
-| `size` | number | `0.5` | Font size in world units |
-| `depth` | number | `0` | 3D extrusion depth (0 for flat text) |
-| `width` | number | `5` | Text block width for wrapping/alignment |
-| `align` | string | `"center"` | Horizontal alignment: `"left"`, `"center"`, `"right"` |
-
-```json
-{
-  "id": "title-text",
+  "id": "text",
   "components": {
     "transform": { "type": "Transform", "properties": { "position": [0, 3, 0] } },
-    "text": {
-      "type": "Text",
-      "properties": {
-        "text": "Welcome",
-        "color": "#ffffff",
-        "size": 1,
-        "depth": 0.1,
-        "align": "center"
-      }
-    }
+    "text": { "type": "Text", "properties": { "text": "Welcome", "font": "/fonts/font.ttf", "size": 1, "depth": 0.1 } }
   }
 }
 ```
 
-### Model Placement
-
-GLB models don't need geometry/material components:
+### Model
 
 ```json
 {
-  "id": "tree-1",
+  "id": "model",
   "components": {
-    "transform": { "type": "Transform", "properties": { "position": [-12, 0, 10], "scale": [1.5, 1.5, 1.5] } },
-    "model": { "type": "Model", "properties": { "filename": "models/environment/tree.glb" } }
+    "transform": { "type": "Transform", "properties": { "position": [0, 0, 0], "scale": [1.5, 1.5, 1.5] } },
+    "model": { "type": "Model", "properties": { "filename": "/models/tree.glb" } }
   }
 }
 ```
 
-Available models: `models/environment/tree.glb`, `models/environment/servers.glb`, `models/environment/cubeart.glb`
+## Editor
 
-## Editor Mode
-
-Use editor mode when building scenes visually or creating custom components with inspector UI.
-
-### Using the Visual Editor
+### Basic Usage
 
 ```jsx
 import { PrefabEditor } from 'react-three-game';
 
-<PrefabEditor
-  initialPrefab={sceneData}
-  onPrefabChange={setSceneData}
-/>
+<PrefabEditor initialPrefab={sceneData} onPrefabChange={setSceneData} />
 ```
 
-The editor provides a full GUI with:
-- Scene hierarchy tree for navigating and selecting objects
-- Component inspector panel for editing properties
-- Transform gizmos for manipulating objects visually
-- Keyboard shortcuts: **T** (Translate), **R** (Rotate), **S** (Scale)
+Keyboard shortcuts: **T** (Translate), **R** (Rotate), **S** (Scale)
 
-### Programmatic Updates with PrefabEditor
-
-Use the editor ref to update prefabs programmatically:
+### Programmatic Updates
 
 ```jsx
 import { useRef } from 'react';
 import { PrefabEditor, updateNodeById } from 'react-three-game';
-import type { PrefabEditorRef, Prefab } from 'react-three-game';
+import type { PrefabEditorRef } from 'react-three-game';
 
-function Game() {
+function Scene() {
   const editorRef = useRef<PrefabEditorRef>(null);
 
-  const movePlayer = () => {
-    if (!editorRef.current) return;
-    const prefab = editorRef.current.prefab;
-    const newRoot = updateNodeById(prefab.root, "player", node => ({
+  const moveBall = () => {
+    const prefab = editorRef.current!.prefab;
+    const newRoot = updateNodeById(prefab.root, "ball", node => ({
       ...node,
       components: {
         ...node.components,
@@ -401,209 +321,74 @@ function Game() {
         }
       }
     }));
-    editorRef.current.setPrefab({ ...prefab, root: newRoot });
+    editorRef.current!.setPrefab({ ...prefab, root: newRoot });
   };
 
-  return (
-    <PrefabEditor ref={editorRef} initialPrefab={sceneData}>
-      {/* Children render inside the Canvas - can use useFrame here */}
-    </PrefabEditor>
-  );
+  return <PrefabEditor ref={editorRef} initialPrefab={sceneData} />;
 }
 ```
 
-The `PrefabEditorRef` provides:
-- `prefab` - current prefab state
-- `setPrefab(prefab)` - update the prefab
-- `screenshot()` - save canvas as PNG
-- `exportGLB()` - export scene as GLB
-- `rootRef` - reference to the Three.js scene root for programmatic GLB export
+**PrefabEditorRef**: `prefab`, `setPrefab()`, `screenshot()`, `exportGLB()`, `rootRef`
 
-### Programmatic GLB Export
-
-Export Three.js scenes to GLB format from JSON prefabs:
+### GLB Export
 
 ```tsx
-import { useRef, useEffect } from 'react';
-import { PrefabEditor, exportGLB, exportGLBData } from 'react-three-game';
-import type { PrefabEditorRef } from 'react-three-game';
+import { exportGLBData } from 'react-three-game';
 
-function ExportScene() {
-  const editorRef = useRef<PrefabEditorRef>(null);
-
-  const handleExport = async () => {
-    const sceneRoot = editorRef.current?.rootRef.current?.root;
-    if (!sceneRoot) return;
-
-    // Option 1: Export and trigger browser download
-    await exportGLB(sceneRoot, { 
-      filename: 'my-scene.glb',
-      binary: true,
-      onComplete: (result) => console.log('Export complete'),
-      onError: (error) => console.error('Export failed', error)
-    });
-
-    // Option 2: Get raw ArrayBuffer without downloading
-    const glbData = await exportGLBData(sceneRoot);
-    // Upload to server, save to file system, etc.
-  };
-
-  return (
-    <>
-      <PrefabEditor ref={editorRef} initialPrefab={jsonPrefab} />
-      <button onClick={handleExport}>Export GLB</button>
-    </>
-  );
-}
+const glbData = await exportGLBData(editorRef.current!.rootRef.current!.root);
 ```
 
-**Export Options:**
-- `filename` - Output filename (triggers download if provided)
-- `binary` - Export as binary GLB (true) or JSON glTF (false)
-- `onComplete` - Callback when export succeeds
-- `onError` - Callback when export fails
-
-**Common Agent Pattern:**
-```tsx
-useEffect(() => {
-  // Wait for scene to fully render
-  const timer = setTimeout(async () => {
-    const sceneRoot = editorRef.current?.rootRef.current?.root;
-    if (sceneRoot) {
-      const glbData = await exportGLBData(sceneRoot);
-      // Process the ArrayBuffer
-    }
-  }, 1000);
-  return () => clearTimeout(timer);
-}, []);
-```
-
-### Live Node Updates with useFrame
-
-To animate objects by updating the prefab JSON at runtime, pass a child component to `PrefabEditor` that uses `useFrame`:
+### Runtime Animation
 
 ```tsx
 import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { PrefabEditor, updateNodeById } from "react-three-game";
-import type { Prefab, PrefabEditorRef } from "react-three-game";
 
-// Animation component runs inside the editor's Canvas
-function PlayerAnimator({ editorRef }: { editorRef: React.RefObject<PrefabEditorRef | null> }) {
-  const velocityRef = useRef({ x: 0, z: 0 });
-
+function Animator({ editorRef }) {
   useFrame(() => {
-    if (!editorRef.current) return;
-
-    const prefab = editorRef.current.prefab;
-    const newRoot = updateNodeById(prefab.root, "player", (node) => {
-      const transform = node.components?.transform?.properties;
-      if (!transform) return node;
-
-      const pos = transform.position as [number, number, number];
-      return {
-        ...node,
-        components: {
-          ...node.components,
-          transform: {
-            ...node.components!.transform!,
-            properties: {
-              ...transform,
-              position: [pos[0] + velocityRef.current.x * 0.02, pos[1], pos[2] + velocityRef.current.z * 0.02],
-            },
-          },
-        },
-      };
-    });
-
-    if (newRoot !== prefab.root) {
-      editorRef.current.setPrefab({ ...prefab, root: newRoot });
-    }
+    const prefab = editorRef.current!.prefab;
+    const newRoot = updateNodeById(prefab.root, "ball", node => ({
+      ...node,
+      components: {
+        ...node.components,
+        transform: {
+          ...node.components!.transform!,
+          properties: { ...node.components!.transform!.properties, position: [x, y, z] }
+        }
+      }
+    }));
+    editorRef.current!.setPrefab({ ...prefab, root: newRoot });
   });
-
   return null;
 }
 
-// Usage
-function Game() {
-  const editorRef = useRef<PrefabEditorRef>(null);
-
+function Scene() {
+  const editorRef = useRef(null);
   return (
-    <PrefabEditor ref={editorRef} initialPrefab={sceneData}>
-      <PlayerAnimator editorRef={editorRef} />
+    <PrefabEditor ref={editorRef} initialPrefab={data}>
+      <Animator editorRef={editorRef} />
     </PrefabEditor>
   );
 }
 ```
 
-Key points:
-- Pass animation components as `children` to `PrefabEditor` - they render inside the Canvas
-- Access prefab via `editorRef.current.prefab` and update via `editorRef.current.setPrefab()`
-- `updateNodeById` is optimized to avoid recreating unchanged branches
-- Store mutable state (velocities, timers) in refs to avoid re-renders
-
-### Creating a Custom Component
+### Custom Component
 
 ```tsx
-import { Component, registerComponent, FieldRenderer, FieldDefinition } from 'react-three-game';
-
-const myFields: FieldDefinition[] = [
-  { name: 'speed', type: 'number', label: 'Speed', step: 0.1 },
-  { name: 'enabled', type: 'boolean', label: 'Enabled' },
-];
+import { Component, registerComponent, FieldRenderer } from 'react-three-game';
 
 const MyComponent: Component = {
   name: 'MyComponent',
   Editor: ({ component, onUpdate }) => (
-    <FieldRenderer fields={myFields} values={component.properties} onChange={onUpdate} />
+    <FieldRenderer fields={[{ name: 'speed', type: 'number', step: 0.1 }]} values={component.properties} onChange={onUpdate} />
   ),
-  View: ({ properties, children }) => {
-    // Runtime behavior here
-    return <group>{children}</group>;
-  },
-  defaultProperties: { speed: 1, enabled: true }
+  View: ({ properties, children }) => <group>{children}</group>,
+  defaultProperties: { speed: 1 }
 };
 
 registerComponent(MyComponent);
 ```
 
-### Field Types for Editor UI
-
-| Type | Description | Options |
-|------|-------------|---------|
-| `vector3` | X/Y/Z inputs | `snap?: number` |
-| `number` | Numeric input | `min?`, `max?`, `step?` |
-| `string` | Text input | `placeholder?` |
-| `color` | Color picker | - |
-| `boolean` | Checkbox | - |
-| `select` | Dropdown | `options: { value, label }[]` |
-| `custom` | Custom render function | `render: (props) => ReactNode` |
-
-## Dependencies
-
-Required peer dependencies:
-- `@react-three/fiber`
-- `@react-three/rapier`
-- `three`
-
-Install with:
-```bash
-npm i react-three-game @react-three/fiber @react-three/rapier three
-```
-
-## File Structure
-
-```
-/src                 → library source (published to npm)
-/docs                → Next.js demo site
-/dist                → built output
-```
-
-## Development Commands
-
-```bash
-npm run dev     # tsc --watch + docs site
-npm run build   # build to /dist
-npm run release # build + publish
-```
+**Field types**: `vector3`, `number`, `string`, `color`, `boolean`, `select`, `custom`
 
