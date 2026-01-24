@@ -11,6 +11,54 @@ Instructions for the agent to follow when this skill is activated.
 
 generate 3D scenes, games and physics simulations in React.
 
+## Agent Workflow: JSON → GLB
+
+Agents can programmatically generate 3D assets:
+
+1. Create a JSON prefab following the GameObject schema
+2. Load it in `PrefabEditor` to render the Three.js scene
+3. Export the scene to GLB format using `exportGLB` or `exportGLBData`
+
+```tsx
+import { useRef, useEffect } from 'react';
+import { PrefabEditor, exportGLBData } from 'react-three-game';
+import type { PrefabEditorRef } from 'react-three-game';
+
+const jsonPrefab = {
+  root: {
+    id: "scene",
+    children: [
+      {
+        id: "cube",
+        components: {
+          transform: { type: "Transform", properties: { position: [0, 0, 0] } },
+          geometry: { type: "Geometry", properties: { geometryType: "box", args: [1, 1, 1] } },
+          material: { type: "Material", properties: { color: "#ff0000" } }
+        }
+      }
+    ]
+  }
+};
+
+function AgentExporter() {
+  const editorRef = useRef<PrefabEditorRef>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      const sceneRoot = editorRef.current?.rootRef.current?.root;
+      if (!sceneRoot) return;
+      
+      const glbData = await exportGLBData(sceneRoot);
+      // glbData is an ArrayBuffer ready for upload/storage
+    }, 1000); // Wait for scene to render
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  return <PrefabEditor ref={editorRef} initialPrefab={jsonPrefab} />;
+}
+```
+
 ## Core Concepts
 
 ### GameObject Structure
@@ -121,7 +169,7 @@ import { GameCanvas, PrefabRoot } from 'react-three-game';
 ### Tree Manipulation Utilities
 
 ```typescript
-import { findNode, updateNode, updateNodeById, deleteNode, cloneNode } from 'react-three-game';
+import { findNode, updateNode, updateNodeById, deleteNode, cloneNode, saveJson, loadJson, exportGLB, exportGLBData } from 'react-three-game';
 
 // Update a node by ID (optimized - avoids unnecessary object creation)
 const updated = updateNodeById(root, nodeId, node => ({ ...node, disabled: true }));
@@ -134,6 +182,14 @@ const afterDelete = deleteNode(root, nodeId);
 
 // Clone a node
 const cloned = cloneNode(node);
+
+// Save/load JSON
+saveJson(prefab, 'my-scene');
+const loaded = await loadJson();
+
+// Export to GLB
+await exportGLB(sceneRoot, { filename: 'my-scene.glb' });
+const glbData = await exportGLBData(sceneRoot); // Returns ArrayBuffer
 ```
 
 ## Building Game Levels
@@ -361,6 +417,66 @@ The `PrefabEditorRef` provides:
 - `setPrefab(prefab)` - update the prefab
 - `screenshot()` - save canvas as PNG
 - `exportGLB()` - export scene as GLB
+- `rootRef` - reference to the Three.js scene root for programmatic GLB export
+
+### Programmatic GLB Export
+
+Export Three.js scenes to GLB format from JSON prefabs:
+
+```tsx
+import { useRef, useEffect } from 'react';
+import { PrefabEditor, exportGLB, exportGLBData } from 'react-three-game';
+import type { PrefabEditorRef } from 'react-three-game';
+
+function ExportScene() {
+  const editorRef = useRef<PrefabEditorRef>(null);
+
+  const handleExport = async () => {
+    const sceneRoot = editorRef.current?.rootRef.current?.root;
+    if (!sceneRoot) return;
+
+    // Option 1: Export and trigger browser download
+    await exportGLB(sceneRoot, { 
+      filename: 'my-scene.glb',
+      binary: true,
+      onComplete: (result) => console.log('Export complete'),
+      onError: (error) => console.error('Export failed', error)
+    });
+
+    // Option 2: Get raw ArrayBuffer without downloading
+    const glbData = await exportGLBData(sceneRoot);
+    // Upload to server, save to file system, etc.
+  };
+
+  return (
+    <>
+      <PrefabEditor ref={editorRef} initialPrefab={jsonPrefab} />
+      <button onClick={handleExport}>Export GLB</button>
+    </>
+  );
+}
+```
+
+**Export Options:**
+- `filename` - Output filename (triggers download if provided)
+- `binary` - Export as binary GLB (true) or JSON glTF (false)
+- `onComplete` - Callback when export succeeds
+- `onError` - Callback when export fails
+
+**Common Agent Pattern:**
+```tsx
+useEffect(() => {
+  // Wait for scene to fully render
+  const timer = setTimeout(async () => {
+    const sceneRoot = editorRef.current?.rootRef.current?.root;
+    if (sceneRoot) {
+      const glbData = await exportGLBData(sceneRoot);
+      // Process the ArrayBuffer
+    }
+  }, 1000);
+  return () => clearTimeout(timer);
+}, []);
+```
 
 ### Live Node Updates with useFrame
 
