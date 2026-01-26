@@ -49,7 +49,7 @@ Complete reference for `Physics` component properties:
 | `enabledTranslations` | `[bool, bool, bool]` | `[true, true, true]` | Lock per axis (X, Y, Z) |
 | `enabledRotations` | `[bool, bool, bool]` | `[true, true, true]` | Lock rotation per axis |
 | `ccd` | `boolean` | `false` | Continuous collision detection (fast objects) |
-| `sensor` | `boolean` | `false` | Trigger only, no collision response |
+| `sensor` | `boolean` | `false` | Trigger only, no collision response (see Sensors & Events) |
 | `collisionGroups` | `number` | - | Rapier collision groups bitfield |
 | `solverGroups` | `number` | - | Rapier solver groups bitfield |
 
@@ -347,3 +347,108 @@ Add multiple instances - they'll be automatically batched:
 - **Scale handling**: Visual scale is applied per-instance, but collider scale may differ
 - **Transform updates**: Use `updateNodeById` to move instances (triggers re-sync)
 - **Memory**: One set of GPU buffers shared across all instances
+
+## Sensors & Collision Events
+
+Sensors are colliders that detect intersections without generating physical contact forces. Use them for trigger zones, pickup areas, damage zones, and gameplay triggers.
+
+### Creating a Sensor
+
+Set `sensor: true` in the Physics component:
+
+```json
+{
+  "id": "trigger-zone",
+  "components": {
+    "transform": { "type": "Transform", "properties": { "position": [0, 1, 0] } },
+    "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [4, 2, 4] } },
+    "physics": { "type": "Physics", "properties": { "type": "fixed", "sensor": true } }
+  }
+}
+```
+
+### Physics Event Payload
+
+All physics events include:
+
+```typescript
+{
+  sourceEntityId: string;           // The prefab entity that owns the collider
+  targetEntityId: string | null;    // The other entity (if it's a prefab entity)
+  targetRigidBody: RapierRigidBody; // Direct access to the other RigidBody
+}
+```
+
+`targetEntityId` is `null` when colliding with non-prefab physics bodies (custom R3F components). Use `targetRigidBody` to inspect those.
+
+### Common Sensor Patterns
+
+**Pickup Item:**
+```json
+{
+  "id": "coin",
+  "components": {
+    "transform": { "type": "Transform", "properties": { "position": [5, 0.5, 0] } },
+    "model": { "type": "Model", "properties": { "filename": "models/coin.glb" } },
+    "physics": { "type": "Physics", "properties": { "type": "fixed", "sensor": true } }
+  }
+}
+```
+
+```tsx
+useGameEvent('sensor:enter', (payload) => {
+  if (payload.sourceEntityId === 'coin' && payload.targetEntityId === 'player') {
+    removeCoin();
+    gameEvents.emit('score:change', { delta: 100, total: score + 100 });
+  }
+}, [score]);
+```
+
+**Damage Zone:**
+```json
+{
+  "id": "lava",
+  "components": {
+    "transform": { "type": "Transform", "properties": { "position": [0, 0, 0] } },
+    "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [10, 0.5, 10] } },
+    "material": { "type": "Material", "properties": { "color": "#ff4400" } },
+    "physics": { "type": "Physics", "properties": { "type": "fixed", "sensor": true } }
+  }
+}
+```
+
+```tsx
+useGameEvent('sensor:enter', ({ sourceEntityId, targetEntityId }) => {
+  if (sourceEntityId === 'lava') {
+    gameEvents.emit('player:damage', { entityId: targetEntityId, amount: 50 });
+  }
+}, []);
+```
+
+**Level Transition:**
+```tsx
+useGameEvent('sensor:enter', ({ sourceEntityId, targetEntityId }) => {
+  if (sourceEntityId === 'exit-door' && targetEntityId === 'player') {
+    loadNextLevel();
+  }
+}, []);
+```
+
+### Interop with Custom R3F Physics
+
+For custom RigidBody components to participate in the event system, set `userData.entityId`:
+
+```tsx
+<RigidBody userData={{ entityId: 'player' }}>
+  <PlayerMesh />
+</RigidBody>
+```
+
+Now when prefab sensors detect this body, `targetEntityId` will be `'player'`.
+
+### Tips
+
+- Sensors fire events for **all** intersecting bodies - filter by ID
+- `sensor:exit` fires when something leaves a sensor zone
+- `collision:enter/exit` fires for non-sensor physics bodies
+- Entity IDs stored in `RigidBody.userData.entityId`

@@ -378,3 +378,77 @@ registerComponent(MyComponent);
 
 **Field types**: `vector3`, `number`, `string`, `color`, `boolean`, `select`, `custom`
 
+## Game Events
+
+A general-purpose event system for game-wide communication. Handles physics events, gameplay events, and any custom events.
+
+### Core API
+
+```tsx
+import { gameEvents, useGameEvent } from 'react-three-game';
+
+// Emit events
+gameEvents.emit('player:death', { playerId: 'p1', cause: 'lava' });
+gameEvents.emit('score:change', { delta: 100, total: 500 });
+
+// Subscribe (React hook - auto cleanup on unmount)
+useGameEvent('player:death', (payload) => {
+  showGameOver(payload.cause);
+}, []);
+
+// Subscribe (manual - returns unsubscribe function)
+const unsub = gameEvents.on('score:change', (payload) => {
+  updateUI(payload.total);
+});
+unsub(); // cleanup
+```
+
+### Built-in Physics Events
+
+Physics components automatically emit these events:
+
+| Event | When | Payload |
+|-------|------|---------|
+| `sensor:enter` | Something enters a sensor collider | `{ sourceEntityId, targetEntityId, targetRigidBody }` |
+| `sensor:exit` | Something exits a sensor collider | `{ sourceEntityId, targetEntityId, targetRigidBody }` |
+| `collision:enter` | A collision starts | `{ sourceEntityId, targetEntityId, targetRigidBody }` |
+| `collision:exit` | A collision ends | `{ sourceEntityId, targetEntityId, targetRigidBody }` |
+
+See [Advanced Physics](./rules/ADVANCED_PHYSICS.md) for sensor setup and collision handling patterns.
+
+### TypeScript: Typed Custom Events
+
+Extend `GameEventMap` for type-safe custom events:
+
+```typescript
+declare module 'react-three-game' {
+  interface GameEventMap {
+    'player:death': { playerId: string; cause: string };
+    'score:change': { delta: number; total: number };
+    'level:complete': { levelId: number; time: number };
+  }
+}
+```
+
+### Common Patterns
+
+```tsx
+// Gameplay controller
+function GameController() {
+  const [score, setScore] = useState(0);
+
+  useGameEvent('score:change', ({ total }) => setScore(total), []);
+  useGameEvent('player:death', () => setGameOver(true), []);
+
+  return <ScoreUI score={score} />;
+}
+
+// Pickup system
+useGameEvent('sensor:enter', (payload) => {
+  if (payload.sourceEntityId.startsWith('coin-')) {
+    gameEvents.emit('score:change', { delta: 10, total: score + 10 });
+    removeEntity(payload.sourceEntityId);
+  }
+}, [score]);
+```
+
