@@ -116,7 +116,7 @@ Scenes are defined as JSON prefabs with a root node containing children:
 | Transform | `Transform` | `position: [x,y,z]`, `rotation: [x,y,z]` (radians), `scale: [x,y,z]` |
 | Geometry | `Geometry` | `geometryType`: box/sphere/plane/cylinder, `args`: dimension array |
 | Material | `Material` | `color`, `texture?`, `metalness?`, `roughness?`, `repeat?`, `repeatCount?` |
-| Physics | `Physics` | `type`: dynamic/fixed/kinematicPosition/kinematicVelocity, `mass?`, `restitution?`, `friction?`, `linearDamping?`, `angularDamping?`, `gravityScale?`, plus any Rapier RigidBody props |
+| Physics | `Physics` | `type`: dynamic/fixed/kinematicPosition/kinematicVelocity, `mass?`, `restitution?`, `friction?`, `linearDamping?`, `angularDamping?`, `gravityScale?`, plus any Rapier RigidBody props - [See advanced physics guide](./rules/ADVANCED_PHYSICS.md) |
 | Model | `Model` | `filename` (GLB/FBX path), `instanced?` for GPU batching |
 | SpotLight | `SpotLight` | `color`, `intensity`, `angle`, `penumbra`, `distance?`, `castShadow?` |
 | DirectionalLight | `DirectionalLight` | `color`, `intensity`, `castShadow?`, `targetOffset?: [x,y,z]` |
@@ -191,102 +191,71 @@ import { PrefabEditor } from 'react-three-game';
 ### Tree Utilities
 
 ```typescript
-import { updateNodeById, findNode, deleteNode, cloneNode, exportGLBData } from 'react-three-game';
+import { findNode, updateNode, updateNodeById, deleteNode, cloneNode, exportGLBData } from 'react-three-game';
 
-const updated = updateNodeById(root, nodeId, node => ({ ...node, disabled: true }));
 const node = findNode(root, nodeId);
+const updated = updateNode(root, nodeId, n => ({ ...n, disabled: true }));  // or updateNodeById (identical)
 const afterDelete = deleteNode(root, nodeId);
 const cloned = cloneNode(node);
 const glbData = await exportGLBData(sceneRoot);
 ```
 
-## Level Patterns
+## Hybrid JSON + R3F Children Pattern
 
-### Floor
+**Prefabs define static scene structure, R3F children add dynamic behavior**:
 
-```json
-{
-  "id": "floor",
-  "components": {
-    "transform": { "type": "Transform", "properties": { "position": [0, -0.5, 0] } },
-    "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [40, 1, 40] } },
-    "material": { "type": "Material", "properties": { "texture": "/textures/floor.png", "repeat": true, "repeatCount": [20, 20] } },
-    "physics": { "type": "Physics", "properties": { "type": "fixed" } }
-  }
+```tsx
+import { useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { PrefabEditor, findNode } from 'react-three-game';
+import type { PrefabEditorRef } from 'react-three-game';
+
+function DynamicLight() {
+  const lightRef = useRef<THREE.SpotLight>(null!);
+  
+  useFrame(({ clock }) => {
+    lightRef.current.intensity = 100 + Math.sin(clock.elapsedTime) * 50;
+  });
+  
+  return <spotLight ref={lightRef} position={[10, 15, 10]} angle={0.5} />;
 }
+
+<PrefabEditor initialPrefab={staticScenePrefab}>
+  <DynamicLight />
+  <CustomController />
+</PrefabEditor>
 ```
 
-### Platform
+**Use cases**: Player controllers, AI behaviors, procedural animation, real-time effects.
+
+## Quick Reference Examples
 
 ```json
-{
-  "id": "platform",
-  "components": {
-    "transform": { "type": "Transform", "properties": { "position": [-8, 2, -5] } },
-    "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [6, 0.5, 4] } },
-    "physics": { "type": "Physics", "properties": { "type": "fixed" } }
-  }
-}
-```
+// Static geometry with physics (floor, wall, platform, ramp)
+{ "id": "floor", "components": {
+  "transform": { "type": "Transform", "properties": { "position": [0, -0.5, 0] } },
+  "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [40, 1, 40] } },
+  "material": { "type": "Material", "properties": { "texture": "/textures/floor.png", "repeat": true, "repeatCount": [20, 20] } },
+  "physics": { "type": "Physics", "properties": { "type": "fixed" } }
+}}
 
-### Ramp
+// Lighting
+{ "id": "spot", "components": {
+  "transform": { "type": "Transform", "properties": { "position": [10, 15, 10] } },
+  "spotlight": { "type": "SpotLight", "properties": { "intensity": 200, "angle": 0.8, "castShadow": true } }
+}}
 
-```json
-{
-  "id": "ramp",
-  "components": {
-    "transform": { "type": "Transform", "properties": { "position": [-12, 1, -5], "rotation": [0, 0, 0.3] } },
-    "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [5, 0.3, 3] } },
-    "physics": { "type": "Physics", "properties": { "type": "fixed" } }
-  }
-}
-```
+// 3D Text
+{ "id": "title", "components": {
+  "transform": { "type": "Transform", "properties": { "position": [0, 3, 0] } },
+  "text": { "type": "Text", "properties": { "text": "Welcome", "font": "/fonts/font.ttf", "size": 1, "depth": 0.1 } }
+}}
 
-### Wall Pattern
-### Wall
-
-```json
-{
-  "id": "wall",
-  "components": {
-    "transform": { "type": "Transform", "properties": { "position": [0, 3, -20] } },
-    "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [40, 7, 1] } },
-    "physics": { "type": "Physics", "properties": { "type": "fixed" } }
-  }
-}
-```
-
-### Lighting
-
-```json
-[
-  { "id": "spot", "components": { "transform": { "properties": { "position": [10, 15, 10] } }, "spotlight": { "type": "SpotLight", "properties": { "intensity": 200, "angle": 0.8, "castShadow": true } } } },
-  { "id": "ambient", "components": { "ambientlight": { "type": "AmbientLight", "properties": { "intensity": 0.4 } } } }
-]
-```
-
-### Text
-
-```json
-{
-  "id": "text",
-  "components": {
-    "transform": { "type": "Transform", "properties": { "position": [0, 3, 0] } },
-    "text": { "type": "Text", "properties": { "text": "Welcome", "font": "/fonts/font.ttf", "size": 1, "depth": 0.1 } }
-  }
-}
-```
-
-### Model
-
-```json
-{
-  "id": "model",
-  "components": {
-    "transform": { "type": "Transform", "properties": { "position": [0, 0, 0], "scale": [1.5, 1.5, 1.5] } },
-    "model": { "type": "Model", "properties": { "filename": "/models/tree.glb" } }
-  }
-}
+// GLB Model
+{ "id": "tree", "components": {
+  "transform": { "type": "Transform", "properties": { "position": [0, 0, 0], "scale": [1.5, 1.5, 1.5] } },
+  "model": { "type": "Model", "properties": { "filename": "/models/tree.glb" } }
+}}
 ```
 
 ## Editor
@@ -300,6 +269,21 @@ import { PrefabEditor } from 'react-three-game';
 ```
 
 Keyboard shortcuts: **T** (Translate), **R** (Rotate), **S** (Scale)
+
+### Camera Control
+
+By default, `PrefabEditor` uses an orbit camera. **Override it by adding a custom camera with `makeDefault`**:
+
+```tsx
+import { PerspectiveCamera } from '@react-three/drei';
+import { PrefabEditor } from 'react-three-game';
+
+<PrefabEditor initialPrefab={prefab}>
+  <PerspectiveCamera makeDefault position={[0, 5, 10]} fov={75} />
+</PrefabEditor>
+```
+
+Any R3F camera component works: `PerspectiveCamera`, `OrthographicCamera`, or custom camera controllers.
 
 ### Programmatic Updates
 
