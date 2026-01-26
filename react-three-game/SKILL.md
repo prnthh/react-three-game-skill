@@ -22,7 +22,7 @@ Agents can programmatically generate 3D assets:
 ```tsx
 import { useRef, useEffect } from 'react';
 import { PrefabEditor, exportGLBData } from 'react-three-game';
-import type { PrefabEditorRef } from 'react-three-game';
+import type { PrefabEditorRef } from 'react-three-game'
 
 const jsonPrefab = {
   root: {
@@ -116,7 +116,7 @@ Scenes are defined as JSON prefabs with a root node containing children:
 | Transform | `Transform` | `position: [x,y,z]`, `rotation: [x,y,z]` (radians), `scale: [x,y,z]` |
 | Geometry | `Geometry` | `geometryType`: box/sphere/plane/cylinder, `args`: dimension array |
 | Material | `Material` | `color`, `texture?`, `metalness?`, `roughness?`, `repeat?`, `repeatCount?` |
-| Physics | `Physics` | `type`: dynamic/fixed/kinematicPosition/kinematicVelocity, `mass?`, `restitution?`, `friction?`, `linearDamping?`, `angularDamping?`, `gravityScale?`, plus any Rapier RigidBody props - [See advanced physics guide](./rules/ADVANCED_PHYSICS.md) |
+| Physics | `Physics` | `type`: dynamic/fixed/kinematicPosition/kinematicVelocity, `mass?`, `restitution?`, `friction?`, `linearDamping?`, `angularDamping?`, `gravityScale?`, `sensor?`, `activeCollisionTypes?: 'all'` (enable kinematic/fixed collision detection), plus any Rapier RigidBody props - [See advanced physics guide](./rules/ADVANCED_PHYSICS.md) |
 | Model | `Model` | `filename` (GLB/FBX path), `instanced?` for GPU batching |
 | SpotLight | `SpotLight` | `color`, `intensity`, `angle`, `penumbra`, `distance?`, `castShadow?` |
 | DirectionalLight | `DirectionalLight` | `color`, `intensity`, `castShadow?`, `targetOffset?: [x,y,z]` |
@@ -413,6 +413,8 @@ Physics components automatically emit these events:
 | `sensor:exit` | Something exits a sensor collider | `{ sourceEntityId, targetEntityId, targetRigidBody }` |
 | `collision:enter` | A collision starts | `{ sourceEntityId, targetEntityId, targetRigidBody }` |
 | `collision:exit` | A collision ends | `{ sourceEntityId, targetEntityId, targetRigidBody }` |
+
+**Collision filtering**: By default, kinematic/fixed bodies don't detect each other. For kinematic sensors or projectiles to detect walls/floors, add `"activeCollisionTypes": "all"` to the Physics properties.
 
 See [Advanced Physics](./rules/ADVANCED_PHYSICS.md) for sensor setup and collision handling patterns.
 

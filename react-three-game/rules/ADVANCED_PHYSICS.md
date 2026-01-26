@@ -49,7 +49,8 @@ Complete reference for `Physics` component properties:
 | `enabledTranslations` | `[bool, bool, bool]` | `[true, true, true]` | Lock per axis (X, Y, Z) |
 | `enabledRotations` | `[bool, bool, bool]` | `[true, true, true]` | Lock rotation per axis |
 | `ccd` | `boolean` | `false` | Continuous collision detection (fast objects) |
-| `sensor` | `boolean` | `false` | Trigger only, no collision response (see Sensors & Events) |
+| `sensor` | `boolean` | `false` | Trigger only, no collision response |
+| `activeCollisionTypes` | `'all'` | - | Enable kinematic/fixed collision detection (default: dynamic only) |
 | `collisionGroups` | `number` | - | Rapier collision groups bitfield |
 | `solverGroups` | `number` | - | Rapier solver groups bitfield |
 
@@ -363,6 +364,21 @@ Set `sensor: true` in the Physics component:
     "transform": { "type": "Transform", "properties": { "position": [0, 1, 0] } },
     "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [4, 2, 4] } },
     "physics": { "type": "Physics", "properties": { "type": "fixed", "sensor": true } }
+  }
+}
+```
+
+**Kinematic/Fixed Collision Detection**: By default, sensors only detect `dynamic` bodies. For kinematic sensors (like bullets) or to detect kinematic players, add `"activeCollisionTypes": "all"`:
+
+```json
+{
+  "physics": {
+    "type": "Physics",
+    "properties": {
+      "type": "kinematicPosition",
+      "sensor": true,
+      "activeCollisionTypes": "all"  // Detects walls, floors, kinematic bodies
+    }
   }
 }
 ```
