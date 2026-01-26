@@ -82,7 +82,6 @@ Every game object follows this schema:
 interface GameObject {
   id: string;
   disabled?: boolean;
-  hidden?: boolean;
   components?: Record<string, { type: string; properties: any }>;
   children?: GameObject[];
 }
@@ -117,7 +116,7 @@ Scenes are defined as JSON prefabs with a root node containing children:
 | Transform | `Transform` | `position: [x,y,z]`, `rotation: [x,y,z]` (radians), `scale: [x,y,z]` |
 | Geometry | `Geometry` | `geometryType`: box/sphere/plane/cylinder, `args`: dimension array |
 | Material | `Material` | `color`, `texture?`, `metalness?`, `roughness?`, `repeat?`, `repeatCount?` |
-| Physics | `Physics` | `type`: "dynamic" or "fixed" |
+| Physics | `Physics` | `type`: dynamic/fixed/kinematicPosition/kinematicVelocity, `mass?`, `restitution?`, `friction?`, `linearDamping?`, `angularDamping?`, `gravityScale?`, plus any Rapier RigidBody props |
 | Model | `Model` | `filename` (GLB/FBX path), `instanced?` for GPU batching |
 | SpotLight | `SpotLight` | `color`, `intensity`, `angle`, `penumbra`, `distance?`, `castShadow?` |
 | DirectionalLight | `DirectionalLight` | `color`, `intensity`, `castShadow?`, `targetOffset?: [x,y,z]` |
@@ -165,7 +164,7 @@ Use radians: `1.57` = 90°, `3.14` = 180°, `-1.57` = -90°
 
 ### Usage Modes
 
-**GameCanvas + PrefabRoot**: Production gameplay. Requires explicit `<Physics>` wrapper. Physics always active. Can compose with other R3F components. For headless mode, use `<PrefabRoot>` without GameCanvas.
+**GameCanvas + PrefabRoot**: Pure renderer for embedding prefab data in standard R3F applications. Minimal wrapper - just renders the prefab as Three.js objects. Requires manual `<Physics>` setup. Physics always active. Use this to integrate prefabs into larger R3F scenes.
 
 ```jsx
 import { Physics } from '@react-three/rapier';
@@ -174,16 +173,19 @@ import { GameCanvas, PrefabRoot } from 'react-three-game';
 <GameCanvas>
   <Physics>
     <PrefabRoot data={prefabData} />
+    <CustomComponent />
   </Physics>
 </GameCanvas>
 ```
 
-**PrefabEditor**: Level editors, scene authoring, prototyping. Includes canvas, physics, UI. Physics activates in play mode only.
+**PrefabEditor**: Managed scene with editor UI and play/pause controls for physics. Full authoring tool for level design and prototyping. Includes canvas, physics, transform gizmos, and inspector. Physics only runs in play mode. Can pass R3F components as children.
 
 ```jsx
 import { PrefabEditor } from 'react-three-game';
 
-<PrefabEditor initialPrefab={prefabData} />
+<PrefabEditor initialPrefab={prefabData}>
+  <CustomComponent />
+</PrefabEditor>
 ```
 
 ### Tree Utilities
