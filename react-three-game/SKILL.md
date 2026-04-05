@@ -169,7 +169,7 @@ Use radians: `1.57` = 90°, `3.14` = 180°, `-1.57` = -90°
 
 ### Usage Modes
 
-**PrefabRoot**: Pure renderer for embedding prefab data in standard R3F applications. Render it inside a regular `@react-three/fiber` `Canvas`. `GameCanvas` provides the WebGPU canvas setup. Requires manual `<Physics>` setup. Physics always active. Use this to integrate prefabs into larger R3F scenes.
+**PrefabRoot**: Pure renderer for embedding prefab data in standard R3F applications. Render it inside a regular `@react-three/fiber` `Canvas`. `GameCanvas` provides the WebGPU canvas setup. Add a `Physics` wrapper to enable physics. Use this to integrate prefabs into larger R3F scenes.
 
 ```jsx
 import { Canvas } from '@react-three/fiber';
