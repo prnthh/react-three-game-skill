@@ -48,6 +48,7 @@ Complete reference for `Physics` component properties:
 | `lockRotations` | `boolean` | `false` | Freeze rotation |
 | `enabledTranslations` | `[bool, bool, bool]` | `[true, true, true]` | Lock per axis (X, Y, Z) |
 | `enabledRotations` | `[bool, bool, bool]` | `[true, true, true]` | Lock rotation per axis |
+| `colliders` | `'hull'` \| `'trimesh'` \| `'cuboid'` \| `'ball'` | auto | Collider shape override (`fixed` defaults to `trimesh`, others to `hull`) |
 | `ccd` | `boolean` | `false` | Continuous collision detection (fast objects) |
 | `sensor` | `boolean` | `false` | Trigger only, no collision response |
 | `activeCollisionTypes` | `'all'` | - | Enable kinematic/fixed collision detection (default: dynamic only) |
@@ -284,21 +285,21 @@ Objects will **slide off** the tilted surface.
 
 ## Instanced Physics
 
-When using `"instanced": true` on models, physics behaves differently than standard objects. **All instances of the same model share a single `InstancedRigidBodies` component** for optimal GPU performance.
+When using `"instanced": true` on models, physics behaves differently than standard objects. Physics instancing is designed for batched `fixed` and `dynamic` bodies, where instances of the same model share an `InstancedRigidBodies` path for better performance.
 
 ### Standard vs Instanced Physics
 
 | Aspect | Standard Physics | Instanced Physics |
 |--------|------------------|-------------------|
-| RigidBody Component | Individual `<RigidBody>` per object | Single `<InstancedRigidBodies>` for all instances |
+| RigidBody Component | Individual `<RigidBody>` per object | Single `<InstancedRigidBodies>` group per model + supported physics type |
 | Ref Access | `rigidBodyRefs.get(nodeId)` returns single RigidBody | Not accessible via `rigidBodyRefs` |
 | Force Application | Direct per-object | Must access via InstancedRigidBodies ref |
-| Collider Type | `hull` (dynamic) or `trimesh` (fixed) | Same, auto-selected |
+| Collider Type | `hull` (dynamic) or `trimesh` (fixed) | Auto-selected by instanced physics path |
 | Performance | One draw call per object | One draw call for all instances |
 
 ### Defining Instanced Objects
 
-Set `"instanced": true` in the model component. **All instances of the same model+physics type are automatically batched**:
+Set `"instanced": true` in the model component. **Instances with the same model path and supported physics type are automatically batched**:
 
 ```json
 {
@@ -326,7 +327,7 @@ Add multiple instances - they'll be automatically batched:
 
 ### Force Application on Instanced Objects
 
-**Instanced physics bodies are not individually accessible.** For objects requiring force/impulse control, use non-instanced physics (`"instanced": false` or omit the property).
+**Instanced physics bodies are not individually accessible.** For objects requiring force/impulse control, kinematic motion, or per-body refs, use non-instanced physics (`"instanced": false` or omit the property).
 
 ### When to Use Instanced Physics
 
@@ -345,6 +346,7 @@ Add multiple instances - they'll be automatically batched:
 ### Performance Notes
 
 - **Batching**: All instances with the same `filename` and `physics.type` are rendered in a single draw call
+- **Supported body types**: The instanced physics path is intended for `fixed` and `dynamic` bodies; use standard non-instanced physics for kinematic bodies
 - **Scale handling**: Visual scale is applied per-instance, but collider scale may differ
 - **Transform updates**: Use `updateNodeById` to move instances (triggers re-sync)
 - **Memory**: One set of GPU buffers shared across all instances
