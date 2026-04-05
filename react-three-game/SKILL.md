@@ -245,6 +245,7 @@ function RuntimeModelPreview({ model }: { model: Object3D | null }) {
       physics={false}
       showUI={false}
       enableWindowDrop={false}
+      canvasProps={{ style: { height: '100%', width: '100%' } }}
     />
   );
 }
@@ -256,8 +257,9 @@ Use:
 - `addModel(path, model, options?)` to create the prefab node and inject the runtime model in one call.
 - `addTexture(path, texture, options?)` for runtime textures.
 - `exportGLBData()` when the app wants the bytes back instead of an automatic download.
+- `canvasProps` when the host app needs to control canvas size, camera, or other `GameCanvas` options.
 
-Avoid reaching through `rootRef` unless you need lower-level scene access that the editor ref does not expose yet.
+Use `rootRef` only for lower-level scene and rigid-body access.
 
 ### Tree Utilities
 
@@ -415,14 +417,12 @@ function Scene() {
 }
 ```
 
-**PrefabEditorRef**: `prefab`, `setPrefab()`, `screenshot()`, `exportGLB()`, `rootRef`
+**PrefabEditorRef**: `prefab`, `setPrefab()`, `replacePrefab()`, `addModel()`, `addTexture()`, `screenshot()`, `exportGLB()`, `exportGLBData()`, `rootRef`
 
 ### GLB Export
 
 ```tsx
-import { exportGLBData } from 'react-three-game';
-
-const glbData = await exportGLBData(editorRef.current!.rootRef.current!.root);
+const glbData = await editorRef.current?.exportGLBData();
 ```
 
 ### Runtime Animation
