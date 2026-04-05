@@ -17,11 +17,11 @@ Agents can programmatically generate 3D assets:
 
 1. Create a JSON prefab following the GameObject schema
 2. Load it in `PrefabEditor` to render the Three.js scene
-3. Export the scene to GLB format using `exportGLB` or `exportGLBData`
+3. Export the scene to GLB format using the editor ref `exportGLB()` or `exportGLBData()`
 
 ```tsx
 import { useRef, useEffect } from 'react';
-import { PrefabEditor, exportGLBData } from 'react-three-game';
+import { PrefabEditor } from 'react-three-game';
 import type { PrefabEditorRef } from 'react-three-game'
 
 const jsonPrefab = {
@@ -45,17 +45,16 @@ function AgentExporter() {
 
   useEffect(() => {
     const timer = setTimeout(async () => {
-      const sceneRoot = editorRef.current?.rootRef.current?.root;
-      if (!sceneRoot) return;
-      
-      const glbData = await exportGLBData(sceneRoot);
+      const glbData = await editorRef.current?.exportGLBData();
+      if (!glbData) return;
+
       // glbData is an ArrayBuffer ready for upload/storage
     }, 1000); // Wait for scene to render
     
     return () => clearTimeout(timer);
   }, []);
 
-  return <PrefabEditor ref={editorRef} initialPrefab={jsonPrefab} />;
+  return <PrefabEditor ref={editorRef} initialPrefab={jsonPrefab} physics={false} showUI={false} />;
 }
 ```
 
@@ -195,6 +194,70 @@ import { PrefabEditor } from 'react-three-game';
   <CustomComponent />
 </PrefabEditor>
 ```
+
+### Embedded Runtime Asset Injection
+
+For embedded tools, prefer the high-level `PrefabEditorRef` helpers over manual `createModelNode(...)` plus `rootRef.current?.injectModel(...)` choreography.
+
+```tsx
+import { useEffect, useRef } from 'react';
+import type { Object3D } from 'three';
+import { PrefabEditor } from 'react-three-game';
+import type { Prefab, PrefabEditorRef } from 'react-three-game';
+
+const EMPTY_PREFAB: Prefab = {
+  id: 'runtime-scene',
+  name: 'Runtime Scene',
+  root: {
+    id: 'root',
+    components: {
+      transform: {
+        type: 'Transform',
+        properties: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }
+      }
+    },
+    children: []
+  }
+};
+
+function RuntimeModelPreview({ model }: { model: Object3D | null }) {
+  const editorRef = useRef<PrefabEditorRef>(null);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    editor.replacePrefab(EMPTY_PREFAB);
+
+    if (!model) return;
+
+    editor.addModel('imports/runtime-model.gltf', model, {
+      name: 'Runtime Model',
+      parentId: 'root',
+      select: false,
+    });
+  }, [model]);
+
+  return (
+    <PrefabEditor
+      ref={editorRef}
+      initialPrefab={EMPTY_PREFAB}
+      physics={false}
+      showUI={false}
+      enableWindowDrop={false}
+    />
+  );
+}
+```
+
+Use:
+
+- `replacePrefab(prefab)` when loading a brand new scene and you want history/selection reset.
+- `addModel(path, model, options?)` to create the prefab node and inject the runtime model in one call.
+- `addTexture(path, texture, options?)` for runtime textures.
+- `exportGLBData()` when the app wants the bytes back instead of an automatic download.
+
+Avoid reaching through `rootRef` unless you need lower-level scene access that the editor ref does not expose yet.
 
 ### Tree Utilities
 
