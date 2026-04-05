@@ -81,11 +81,14 @@ Every game object follows this schema:
 ```typescript
 interface GameObject {
   id: string;
+  name?: string;
   disabled?: boolean;
   components?: Record<string, { type: string; properties: any }>;
   children?: GameObject[];
 }
 ```
+
+`disabled` is the canonical visibility toggle. Transforms are local to the parent node.
 
 ### Prefab JSON Format
 
@@ -121,6 +124,8 @@ Scenes are defined as JSON prefabs with a root node containing children:
 | SpotLight | `SpotLight` | `color`, `intensity`, `angle`, `penumbra`, `distance?`, `castShadow?` |
 | DirectionalLight | `DirectionalLight` | `color`, `intensity`, `castShadow?`, `targetOffset?: [x,y,z]` |
 | AmbientLight | `AmbientLight` | `color`, `intensity` |
+| Environment | `Environment` | `intensity`, `resolution` |
+| Camera | `Camera` | `fov`, `near`, `far`, `zoom` |
 | Text | `Text` | `text`, `font`, `size`, `depth`, `width`, `align`, `color` |
 
 ### Text Component
@@ -164,21 +169,24 @@ Use radians: `1.57` = 90°, `3.14` = 180°, `-1.57` = -90°
 
 ### Usage Modes
 
-**GameCanvas + PrefabRoot**: Pure renderer for embedding prefab data in standard R3F applications. Minimal wrapper - just renders the prefab as Three.js objects. Requires manual `<Physics>` setup. Physics always active. Use this to integrate prefabs into larger R3F scenes.
+**PrefabRoot**: Pure renderer for embedding prefab data in standard R3F applications. Render it inside a regular `@react-three/fiber` `Canvas`. `GameCanvas` provides the WebGPU canvas setup. Requires manual `<Physics>` setup. Physics always active. Use this to integrate prefabs into larger R3F scenes.
 
 ```jsx
+import { Canvas } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
-import { GameCanvas, PrefabRoot } from 'react-three-game';
+import { PrefabRoot } from 'react-three-game';
 
-<GameCanvas>
+<Canvas>
   <Physics>
     <PrefabRoot data={prefabData} />
     <CustomComponent />
   </Physics>
-</GameCanvas>
+</Canvas>
 ```
 
-**PrefabEditor**: Managed scene with editor UI and play/pause controls for physics. Full authoring tool for level design and prototyping. Includes canvas, physics, transform gizmos, and inspector. Physics only runs in play mode. Can pass R3F components as children.
+`GameCanvas` provides the library's WebGPU canvas setup.
+
+**PrefabEditor**: Managed scene with editor UI and play/pause controls for physics. Full authoring tool for level design and prototyping. Includes canvas, physics, transform gizmos, and inspector. Physics only runs in play mode. Can pass R3F components as children. Editor actions live under `Menu > File`, and exports under `Menu > Export`.
 
 ```jsx
 import { PrefabEditor } from 'react-three-game';
@@ -227,6 +235,36 @@ function DynamicLight() {
 ```
 
 **Use cases**: Player controllers, AI behaviors, procedural animation, real-time effects.
+
+## World Scene Pattern
+
+The current world demo combines prefab-authored level geometry with runtime React behavior:
+
+- Static level layout, props, and collision live in prefab JSON.
+- `Environment` can wrap sky geometry or lighting content for a full scene backdrop.
+- `Camera` can live in the prefab so view-only scenes and editor scenes share the same authored viewpoint.
+- Runtime logic can use `useFrame` plus `updateNodeById` to animate prefab entities without abandoning the JSON scene model.
+
+```json
+{
+  "id": "environment",
+  "components": {
+    "environment": {
+      "type": "Environment",
+      "properties": { "intensity": 1, "resolution": 256 }
+    }
+  },
+  "children": [
+    {
+      "id": "sky",
+      "components": {
+        "geometry": { "type": "Geometry", "properties": { "geometryType": "sphere", "args": [100, 32, 16] } },
+        "material": { "type": "Material", "properties": { "texture": "/textures/skybox/skybox1.jpg", "side": "BackSide", "materialType": "basic" } }
+      }
+    }
+  ]
+}
+```
 
 ## Quick Reference Examples
 
@@ -375,6 +413,26 @@ const MyComponent: Component = {
 
 registerComponent(MyComponent);
 ```
+
+Use the component in prefab JSON by adding a component entry whose `type` matches the registered component name:
+
+```json
+{
+  "components": {
+    "mycomponent": {
+      "type": "MyComponent",
+      "properties": {
+        "speed": 1
+      }
+    }
+  }
+}
+```
+
+Rules:
+- Call `registerComponent(MyComponent)` before rendering `<PrefabEditor>` or `<PrefabRoot>` with prefab data that uses it.
+- `type` must match the registered component name exactly (`name: 'MyComponent'` -> `"type": "MyComponent"`).
+- Use `View` to render visible content, wrap `children`, or add runtime behavior with hooks like `useFrame`.
 
 **Field types**: `vector3`, `number`, `string`, `color`, `boolean`, `select`, `custom`
 
