@@ -20,7 +20,7 @@ Need physics?
     │
     └─ Velocity-driven (conveyor belts, wind zones)
         └─ type: "kinematicVelocity"
-            └─ Set velocity via RigidBody ref
+        └─ Set runtime velocity via RigidBody ref
 ```
 
 **Type descriptions**:
@@ -44,6 +44,8 @@ Complete reference for `Physics` component properties:
 | `linearDamping` | `number` | `0` | Velocity decay (0 = none, 1 = full stop) |
 | `angularDamping` | `number` | `0` | Rotation decay |
 | `gravityScale` | `number` | `1` | Gravity multiplier (0 = floating, 2 = heavy) |
+| `linearVelocity` | `[number, number, number]` | `[0, 0, 0]` | Initial linear velocity applied when the rigid body mounts |
+| `angularVelocity` | `[number, number, number]` | `[0, 0, 0]` | Initial angular velocity applied when the rigid body mounts |
 | `lockTranslations` | `boolean` | `false` | Freeze position |
 | `lockRotations` | `boolean` | `false` | Freeze rotation |
 | `enabledTranslations` | `[bool, bool, bool]` | `[true, true, true]` | Lock per axis (X, Y, Z) |
@@ -84,6 +86,23 @@ Complete reference for `Physics` component properties:
   }
 }
 ```
+
+**Example - Authored Projectile Launch**:
+```json
+{
+  "physics": {
+    "type": "Physics",
+    "properties": {
+      "type": "dynamic",
+      "colliders": "ball",
+      "ccd": true,
+      "linearVelocity": [0, 8, -24]
+    }
+  }
+}
+```
+
+Use `linearVelocity` and `angularVelocity` for initial motion that belongs in prefab data. Use a RigidBody ref when velocity needs to change continuously at runtime.
 
 ## Force & Impulse Application
 

@@ -80,10 +80,12 @@ Use the matching tool:
 | local transform | `Transform` | `position`, `rotation`, `scale` |
 | primitive mesh | `Geometry` + `Material` | `geometryType`, `args`, `color`, `texture` |
 | imported asset | `Model` | `filename`, `instanced?` |
-| rigid body | `Physics` | `type`, `mass`, `restitution`, `friction`, `sensor?` |
+| rigid body | `Physics` | `type`, `mass`, `restitution`, `friction`, `linearVelocity?`, `angularVelocity?`, `sensor?` |
+| authored camera | `Camera` | camera properties authored in prefab data |
 | authored lights | `SpotLight`, `DirectionalLight`, `AmbientLight` | `color`, `intensity`, light-specific props |
 | text mesh | `Text` | `text`, `font`, `size`, `depth` |
 | sky / scene backdrop | `Environment` | wrapper-style scene backdrop / lighting |
+| click interaction | `Click` | emits prefab click events for controllers |
 | editor-only control | `useEditorContext()` | editor state only |
 | prefab tree mutation | `updateNode(...)`, `updateNodeById(...)` | scene state only |
 
@@ -147,6 +149,8 @@ For custom tools or viewers:
 - use `replacePrefab(prefab)` to load a new scene
 - use `setPrefab(prefab)` to update current scene state
 - use `addModel(...)` / `addTexture(...)` for runtime asset injection
+- use `clearSelection()` when the host shell needs to reset editor focus state
+- use `screenshot()` or `exportGLB(...)` when the host shell needs an immediate capture/export action
 - use `exportGLBData()` for raw bytes
 
 Use `rootRef` only when lower-level scene or rigid-body access is actually needed.
@@ -156,6 +160,7 @@ Use `rootRef` only when lower-level scene or rigid-body access is actually neede
 Physics is still Rapier plus R3F composition.
 
 - use prefab `Physics` components for authored rigid bodies
+- use `linearVelocity` / `angularVelocity` on prefab `Physics` when the initial motion can be declared in scene data
 - use custom R3F components when direct composition is simpler
 - keep detailed collision and sensor patterns in `rules/ADVANCED_PHYSICS.md`
 
