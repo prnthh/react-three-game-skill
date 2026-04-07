@@ -5,573 +5,172 @@ description: react-three-game, a JSON-first 3D game engine built on React Three 
 
 # react-three-game
 
-Instructions for the agent to follow when this skill is activated.
+Use this skill when building scenes or tools with `react-three-game`.
 
-## When to use
+## Framework Shape
 
-generate 3D scenes, games and physics simulations in React.
+`react-three-game` is a wrapper over normal Three.js and React Three Fiber composition.
 
-## Agent Workflow: JSON → GLB
+Think in layers:
 
-Agents can programmatically generate 3D assets:
+1. Three.js and R3F are still the runtime.
+2. `PrefabRoot` renders prefab JSON into normal R3F structure.
+3. `PrefabEditor` wraps `PrefabRoot` with editor UI, selection, transform controls, and play/edit mode.
 
-1. Create a JSON prefab following the GameObject schema
-2. Load it in `PrefabEditor` to render the Three.js scene
-3. Export the scene to GLB format using the editor ref `exportGLB()` or `exportGLBData()`
+The framework should help with scene structure and tooling, then get out of the way.
+
+## Choose The Lowest Layer
+
+Use the lowest layer that solves the task:
+
+1. plain R3F / Three.js for runtime behavior or visual composition
+2. `PrefabRoot` for JSON-authored scene structure
+3. `PrefabEditor` for authoring UI and editor tooling
+
+Do not force runtime logic into prefab abstractions if a normal R3F component is clearer.
+
+## Main Pieces
+
+### `PrefabRoot`
+
+Use `PrefabRoot` when the scene comes from prefab JSON but still lives inside a normal R3F app.
 
 ```tsx
-import { useRef, useEffect } from 'react';
-import { PrefabEditor } from 'react-three-game';
-import type { PrefabEditorRef } from 'react-three-game'
-
-const jsonPrefab = {
-  root: {
-    id: "scene",
-    children: [
-      {
-        id: "cube",
-        components: {
-          transform: { type: "Transform", properties: { position: [0, 0, 0] } },
-          geometry: { type: "Geometry", properties: { geometryType: "box", args: [1, 1, 1] } },
-          material: { type: "Material", properties: { color: "#ff0000" } }
-        }
-      }
-    ]
-  }
-};
-
-function AgentExporter() {
-  const editorRef = useRef<PrefabEditorRef>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      const glbData = await editorRef.current?.exportGLBData();
-      if (!glbData) return;
-
-      // glbData is an ArrayBuffer ready for upload/storage
-    }, 1000); // Wait for scene to render
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  return <PrefabEditor ref={editorRef} initialPrefab={jsonPrefab} physics={false} showUI={false} />;
-}
-```
-
-## Core Concepts
-
-### Asset Paths and Public Directory
-
-**All asset paths are relative to `/public`** and omit the `/public` prefix:
-
-```json
-{
-  "texture": "/textures/floor.png",
-  "model": "/models/car.glb",
-  "font": "/fonts/font.ttf"
-}
-```
-
-Path `"/any/path/file.ext"` refers to `/public/any/path/file.ext`.
-### GameObject Structure
-
-Every game object follows this schema:
-
-```typescript
-interface GameObject {
-  id: string;
-  name?: string;
-  disabled?: boolean;
-  components?: Record<string, { type: string; properties: any }>;
-  children?: GameObject[];
-}
-```
-
-`disabled` is the canonical visibility toggle. Transforms are local to the parent node.
-
-### Prefab JSON Format
-
-Scenes are defined as JSON prefabs with a root node containing children:
-
-```json
-{
-  "root": {
-    "id": "scene",
-    "children": [
-      {
-        "id": "my-object",
-        "components": {
-          "transform": { "type": "Transform", "properties": { "position": [0, 0, 0] } },
-          "geometry": { "type": "Geometry", "properties": { "geometryType": "box" } },
-          "material": { "type": "Material", "properties": { "color": "#ff0000" } }
-        }
-      }
-    ]
-  }
-}
-```
-
-## Built-in Components
-
-| Component | Type | Key Properties |
-|-----------|------|----------------|
-| Transform | `Transform` | `position: [x,y,z]`, `rotation: [x,y,z]` (radians), `scale: [x,y,z]` |
-| Geometry | `Geometry` | `geometryType`: box/sphere/plane/cylinder, `args`: dimension array |
-| Material | `Material` | `color`, `texture?`, `metalness?`, `roughness?`, `repeat?`, `repeatCount?` |
-| Physics | `Physics` | `type`: dynamic/fixed/kinematicPosition/kinematicVelocity, `mass?`, `restitution?`, `friction?`, `linearDamping?`, `angularDamping?`, `gravityScale?`, `sensor?`, `activeCollisionTypes?: 'all'` (enable kinematic/fixed collision detection), plus any Rapier RigidBody props - [See advanced physics guide](./rules/ADVANCED_PHYSICS.md) |
-| Model | `Model` | `filename` (GLB/FBX path), `instanced?` for GPU batching |
-| SpotLight | `SpotLight` | `color`, `intensity`, `angle`, `penumbra`, `distance?`, `castShadow?` |
-| DirectionalLight | `DirectionalLight` | `color`, `intensity`, `castShadow?`, `targetOffset?: [x,y,z]` |
-| AmbientLight | `AmbientLight` | `color`, `intensity` |
-| Environment | `Environment` | `intensity`, `resolution` |
-| Camera | `Camera` | `fov`, `near`, `far`, `zoom` |
-| Text | `Text` | `text`, `font`, `size`, `depth`, `width`, `align`, `color` |
-
-### Text Component
-
-Requires `hb.wasm` and a font file (TTF/WOFF) in `/public/fonts/`:
-- hb.wasm: https://github.com/prnthh/react-three-game/raw/refs/heads/main/docs/public/fonts/hb.wasm
-- Sample font: https://github.com/prnthh/react-three-game/raw/refs/heads/main/docs/public/fonts/NotoSans-Regular.ttf
-
-Font property: `"font": "/fonts/NotoSans-Regular.ttf"`
-
-### Geometry Args by Type
-
-| geometryType | args array |
-|--------------|------------|
-| `box` | `[width, height, depth]` |
-| `sphere` | `[radius, widthSegments, heightSegments]` |
-| `plane` | `[width, height]` |
-| `cylinder` | `[radiusTop, radiusBottom, height, radialSegments]` |
-
-### Material Textures
-
-```json
-{
-  "material": {
-    "type": "Material",
-    "properties": {
-      "color": "white",
-      "texture": "/textures/floor.png",
-      "repeat": true,
-      "repeatCount": [4, 4]
-    }
-  }
-}
-```
-
-### Rotations
-
-Use radians: `1.57` = 90°, `3.14` = 180°, `-1.57` = -90°
-
-## Common Patterns
-
-### Usage Modes
-
-**PrefabRoot**: Pure renderer for embedding prefab data in standard R3F applications. Render it inside a regular `@react-three/fiber` `Canvas`. `GameCanvas` provides the WebGPU canvas setup. Add a `Physics` wrapper to enable physics. Use this to integrate prefabs into larger R3F scenes.
-
-```jsx
-import { Canvas } from '@react-three/fiber';
-import { Physics } from '@react-three/rapier';
-import { PrefabRoot } from 'react-three-game';
-
-<Canvas>
+<GameCanvas>
   <Physics>
-    <PrefabRoot data={prefabData} />
-    <CustomComponent />
+    <PrefabRoot data={prefab} />
+    <CustomController />
   </Physics>
-</Canvas>
+</GameCanvas>
 ```
 
-`GameCanvas` provides the library's WebGPU canvas setup.
+### `PrefabEditor`
 
-**PrefabEditor**: Managed scene with editor UI and play/pause controls for physics. Full authoring tool for level design and prototyping. Includes canvas, physics, transform gizmos, and inspector. Physics only runs in play mode. Can pass R3F components as children. Editor actions live under `Menu > File`, and exports under `Menu > Export`.
+Use `PrefabEditor` when the user needs authoring features.
 
-```jsx
-import { PrefabEditor } from 'react-three-game';
+- built-in canvas
+- hierarchy and inspector UI
+- selection and transform gizmos
+- play/edit mode
 
-<PrefabEditor initialPrefab={prefabData}>
-  <CustomComponent />
-</PrefabEditor>
-```
-
-### Embedded Runtime Asset Injection
-
-For embedded tools, prefer the high-level `PrefabEditorRef` helpers over manual `createModelNode(...)` plus `rootRef.current?.injectModel(...)` choreography.
+It still accepts normal R3F children.
 
 ```tsx
-import { useEffect, useRef } from 'react';
-import type { Object3D } from 'three';
-import { PrefabEditor } from 'react-three-game';
-import type { Prefab, PrefabEditorRef } from 'react-three-game';
-
-const EMPTY_PREFAB: Prefab = {
-  id: 'runtime-scene',
-  name: 'Runtime Scene',
-  root: {
-    id: 'root',
-    components: {
-      transform: {
-        type: 'Transform',
-        properties: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }
-      }
-    },
-    children: []
-  }
-};
-
-function RuntimeModelPreview({ model }: { model: Object3D | null }) {
-  const editorRef = useRef<PrefabEditorRef>(null);
-
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor) return;
-
-    editor.replacePrefab(EMPTY_PREFAB);
-
-    if (!model) return;
-
-    editor.addModel('imports/runtime-model.gltf', model, {
-      name: 'Runtime Model',
-      parentId: 'root',
-      select: false,
-    });
-  }, [model]);
-
-  return (
-    <PrefabEditor
-      ref={editorRef}
-      initialPrefab={EMPTY_PREFAB}
-      physics={false}
-      showUI={false}
-      enableWindowDrop={false}
-      canvasProps={{ style: { height: '100%', width: '100%' } }}
-    />
-  );
-}
-```
-
-Use:
-
-- `replacePrefab(prefab)` when loading a brand new scene and you want history/selection reset.
-- `addModel(path, model, options?)` to create the prefab node and inject the runtime model in one call.
-- `addTexture(path, texture, options?)` for runtime textures.
-- `exportGLBData()` when the app wants the bytes back instead of an automatic download.
-- `canvasProps` when the host app needs to control canvas size, camera, or other `GameCanvas` options.
-
-Use `rootRef` only for lower-level scene and rigid-body access.
-
-### Tree Utilities
-
-```typescript
-import { findNode, updateNode, updateNodeById, deleteNode, cloneNode, exportGLBData } from 'react-three-game';
-
-const node = findNode(root, nodeId);
-const updated = updateNode(root, nodeId, n => ({ ...n, disabled: true }));  // or updateNodeById (identical)
-const afterDelete = deleteNode(root, nodeId);
-const cloned = cloneNode(node);
-const glbData = await exportGLBData(sceneRoot);
-```
-
-## Hybrid JSON + R3F Children Pattern
-
-**Prefabs define static scene structure, R3F children add dynamic behavior**:
-
-```tsx
-import { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { PrefabEditor, findNode } from 'react-three-game';
-import type { PrefabEditorRef } from 'react-three-game';
-
-function DynamicLight() {
-  const lightRef = useRef<THREE.SpotLight>(null!);
-  
-  useFrame(({ clock }) => {
-    lightRef.current.intensity = 100 + Math.sin(clock.elapsedTime) * 50;
-  });
-  
-  return <spotLight ref={lightRef} position={[10, 15, 10]} angle={0.5} />;
-}
-
-<PrefabEditor initialPrefab={staticScenePrefab}>
-  <DynamicLight />
+<PrefabEditor initialPrefab={prefab}>
   <CustomController />
 </PrefabEditor>
 ```
 
-**Use cases**: Player controllers, AI behaviors, procedural animation, real-time effects.
+## State Split
 
-## World Scene Pattern
+Keep these separate:
 
-The current world demo combines prefab-authored level geometry with runtime React behavior:
+- editor state: transform mode, selection, play/edit mode, focus, export actions
+- scene state: prefab tree content, node transforms, materials, disabled flags, children
 
-- Static level layout, props, and collision live in prefab JSON.
-- `Environment` can wrap sky geometry or lighting content for a full scene backdrop.
-- `Camera` can live in the prefab so view-only scenes and editor scenes share the same authored viewpoint.
-- Runtime logic can use `useFrame` plus `updateNodeById` to animate prefab entities without abandoning the JSON scene model.
+Use the matching tool:
 
-```json
-{
-  "id": "environment",
-  "components": {
-    "environment": {
-      "type": "Environment",
-      "properties": { "intensity": 1, "resolution": 256 }
-    }
-  },
-  "children": [
-    {
-      "id": "sky",
-      "components": {
-        "geometry": { "type": "Geometry", "properties": { "geometryType": "sphere", "args": [100, 32, 16] } },
-        "material": { "type": "Material", "properties": { "texture": "/textures/skybox/skybox1.jpg", "side": "BackSide", "materialType": "basic" } }
-      }
-    }
-  ]
-}
-```
+- `useEditorContext()` for editor state
+- `updateNode(...)` / `updateNodeById(...)` for scene state
 
-## Quick Reference Examples
+## Quick Component Map
 
-```json
-// Static geometry with physics (floor, wall, platform, ramp)
-{ "id": "floor", "components": {
-  "transform": { "type": "Transform", "properties": { "position": [0, -0.5, 0] } },
-  "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [40, 1, 40] } },
-  "material": { "type": "Material", "properties": { "texture": "/textures/floor.png", "repeat": true, "repeatCount": [20, 20] } },
-  "physics": { "type": "Physics", "properties": { "type": "fixed" } }
-}}
+| Need | Component / Tool | Key props / note |
+|---|---|---|
+| local transform | `Transform` | `position`, `rotation`, `scale` |
+| primitive mesh | `Geometry` + `Material` | `geometryType`, `args`, `color`, `texture` |
+| imported asset | `Model` | `filename`, `instanced?` |
+| rigid body | `Physics` | `type`, `mass`, `restitution`, `friction`, `sensor?` |
+| authored lights | `SpotLight`, `DirectionalLight`, `AmbientLight` | `color`, `intensity`, light-specific props |
+| text mesh | `Text` | `text`, `font`, `size`, `depth` |
+| sky / scene backdrop | `Environment` | wrapper-style scene backdrop / lighting |
+| editor-only control | `useEditorContext()` | editor state only |
+| prefab tree mutation | `updateNode(...)`, `updateNodeById(...)` | scene state only |
 
-// Lighting
-{ "id": "spot", "components": {
-  "transform": { "type": "Transform", "properties": { "position": [10, 15, 10] } },
-  "spotlight": { "type": "SpotLight", "properties": { "intensity": 200, "angle": 0.8, "castShadow": true } }
-}}
+## Composition Patterns
 
-// 3D Text
-{ "id": "title", "components": {
-  "transform": { "type": "Transform", "properties": { "position": [0, 3, 0] } },
-  "text": { "type": "Text", "properties": { "text": "Welcome", "font": "/fonts/font.ttf", "size": 1, "depth": 0.1 } }
-}}
+### Editor State Bridge
 
-// GLB Model
-{ "id": "tree", "components": {
-  "transform": { "type": "Transform", "properties": { "position": [0, 0, 0], "scale": [1.5, 1.5, 1.5] } },
-  "model": { "type": "Model", "properties": { "filename": "/models/tree.glb" } }
-}}
-```
-
-## Editor
-
-### Basic Usage
-
-```jsx
-import { PrefabEditor } from 'react-three-game';
-
-<PrefabEditor initialPrefab={sceneData} onPrefabChange={setSceneData} />
-```
-
-Keyboard shortcuts: **T** (Translate), **R** (Rotate), **S** (Scale)
-
-### Camera Control
-
-By default, `PrefabEditor` uses an orbit camera. **Override it by adding a custom camera with `makeDefault`**:
+For custom editor controls, render a tiny helper component inside `PrefabEditor` and read editor state from context.
 
 ```tsx
-import { PerspectiveCamera } from '@react-three/drei';
-import { PrefabEditor } from 'react-three-game';
+function EditorStateBridge({ onReady }) {
+  const editorState = useEditorContext();
 
-<PrefabEditor initialPrefab={prefab}>
-  <PerspectiveCamera makeDefault position={[0, 5, 10]} fov={75} />
-</PrefabEditor>
-```
+  useEffect(() => {
+    onReady(editorState);
+  }, [editorState, onReady]);
 
-Any R3F camera component works: `PerspectiveCamera`, `OrthographicCamera`, or custom camera controllers.
-
-### Programmatic Updates
-
-```jsx
-import { useRef } from 'react';
-import { PrefabEditor, updateNodeById } from 'react-three-game';
-import type { PrefabEditorRef } from 'react-three-game';
-
-function Scene() {
-  const editorRef = useRef<PrefabEditorRef>(null);
-
-  const moveBall = () => {
-    const prefab = editorRef.current!.prefab;
-    const newRoot = updateNodeById(prefab.root, "ball", node => ({
-      ...node,
-      components: {
-        ...node.components,
-        transform: {
-          ...node.components!.transform!,
-          properties: { ...node.components!.transform!.properties, position: [5, 0, 0] }
-        }
-      }
-    }));
-    editorRef.current!.setPrefab({ ...prefab, root: newRoot });
-  };
-
-  return <PrefabEditor ref={editorRef} initialPrefab={sceneData} />;
-}
-```
-
-**PrefabEditorRef**: `prefab`, `setPrefab()`, `replacePrefab()`, `addModel()`, `addTexture()`, `screenshot()`, `exportGLB()`, `exportGLBData()`, `rootRef`
-
-### GLB Export
-
-```tsx
-const glbData = await editorRef.current?.exportGLBData();
-```
-
-### Runtime Animation
-
-```tsx
-import { useRef } from "react";
-import { useFrame } from "@react-three/fiber";
-import { PrefabEditor, updateNodeById } from "react-three-game";
-
-function Animator({ editorRef }) {
-  useFrame(() => {
-    const prefab = editorRef.current!.prefab;
-    const newRoot = updateNodeById(prefab.root, "ball", node => ({
-      ...node,
-      components: {
-        ...node.components,
-        transform: {
-          ...node.components!.transform!,
-          properties: { ...node.components!.transform!.properties, position: [x, y, z] }
-        }
-      }
-    }));
-    editorRef.current!.setPrefab({ ...prefab, root: newRoot });
-  });
   return null;
 }
-
-function Scene() {
-  const editorRef = useRef(null);
-  return (
-    <PrefabEditor ref={editorRef} initialPrefab={data}>
-      <Animator editorRef={editorRef} />
-    </PrefabEditor>
-  );
-}
 ```
 
-### Custom Component
+### Scene State Updates
+
+For scene changes, update the prefab tree immutably.
 
 ```tsx
-import { Component, registerComponent, FieldRenderer } from 'react-three-game';
-
-const MyComponent: Component = {
-  name: 'MyComponent',
-  Editor: ({ component, onUpdate }) => (
-    <FieldRenderer fields={[{ name: 'speed', type: 'number', step: 0.1 }]} values={component.properties} onChange={onUpdate} />
-  ),
-  View: ({ properties, children }) => <group>{children}</group>,
-  defaultProperties: { speed: 1 }
-};
-
-registerComponent(MyComponent);
+const root = updateNodeById(prefab.root, 'node-id', node => ({
+  ...node,
+  disabled: true,
+}));
 ```
 
-Use the component in prefab JSON by adding a component entry whose `type` matches the registered component name:
+Then push the new root back through `setPrefab` or `replacePrefab`.
 
-```json
-{
-  "components": {
-    "mycomponent": {
-      "type": "MyComponent",
-      "properties": {
-        "speed": 1
-      }
-    }
-  }
-}
-```
+### Hybrid Pattern
 
-Rules:
-- Call `registerComponent(MyComponent)` before rendering `<PrefabEditor>` or `<PrefabRoot>` with prefab data that uses it.
-- `type` must match the registered component name exactly (`name: 'MyComponent'` -> `"type": "MyComponent"`).
-- Use `View` to render visible content, wrap `children`, or add runtime behavior with hooks like `useFrame`.
+Use prefab JSON for static structure and normal R3F children for dynamic behavior.
 
-**Field types**: `vector3`, `number`, `string`, `color`, `boolean`, `select`, `custom`
+Good fits:
 
-## Game Events
+- controllers
+- procedural animation
+- postprocessing
+- debug helpers
+- runtime-only scene logic
 
-A general-purpose event system for game-wide communication. Handles physics events, gameplay events, and any custom events.
+## Cookbook
 
-### Core API
+| Goal | Use | Key props / note |
+|---|---|---|
+| authored scene + runtime logic | `PrefabRoot` or `PrefabEditor` + normal R3F children | prefab for structure, children for behavior |
+| custom editor shell | `PrefabEditor showUI={false}` + `useEditorContext()` | bridge editor state inside a child component |
+| embedded viewer / import tool | `replacePrefab`, `addModel`, `addTexture`, `exportGLBData` | host app owns UI |
+| runtime scene change | `updateNode(...)` / `updateNodeById(...)` + `setPrefab(...)` | mutate one node, then apply new prefab |
 
-```tsx
-import { gameEvents, useGameEvent } from 'react-three-game';
+## Embedded Tools
 
-// Emit events
-gameEvents.emit('player:death', { playerId: 'p1', cause: 'lava' });
-gameEvents.emit('score:change', { delta: 100, total: 500 });
+For custom tools or viewers:
 
-// Subscribe (React hook - auto cleanup on unmount)
-useGameEvent('player:death', (payload) => {
-  showGameOver(payload.cause);
-}, []);
+- use `showUI={false}` if the host app provides its own UI
+- use `replacePrefab(prefab)` to load a new scene
+- use `setPrefab(prefab)` to update current scene state
+- use `addModel(...)` / `addTexture(...)` for runtime asset injection
+- use `exportGLBData()` for raw bytes
 
-// Subscribe (manual - returns unsubscribe function)
-const unsub = gameEvents.on('score:change', (payload) => {
-  updateUI(payload.total);
-});
-unsub(); // cleanup
-```
+Use `rootRef` only when lower-level scene or rigid-body access is actually needed.
 
-### Built-in Physics Events
+## Physics
 
-Physics components automatically emit these events:
+Physics is still Rapier plus R3F composition.
 
-| Event | When | Payload |
-|-------|------|---------|
-| `sensor:enter` | Something enters a sensor collider | `{ sourceEntityId, targetEntityId, targetRigidBody }` |
-| `sensor:exit` | Something exits a sensor collider | `{ sourceEntityId, targetEntityId, targetRigidBody }` |
-| `collision:enter` | A collision starts | `{ sourceEntityId, targetEntityId, targetRigidBody }` |
-| `collision:exit` | A collision ends | `{ sourceEntityId, targetEntityId, targetRigidBody }` |
+- use prefab `Physics` components for authored rigid bodies
+- use custom R3F components when direct composition is simpler
+- keep detailed collision and sensor patterns in `rules/ADVANCED_PHYSICS.md`
 
-**Collision filtering**: By default, kinematic/fixed bodies don't detect each other. For kinematic sensors or projectiles to detect walls/floors, add `"activeCollisionTypes": "all"` to the Physics properties.
+## Important Conventions
 
-See [Advanced Physics](./rules/ADVANCED_PHYSICS.md) for sensor setup and collision handling patterns.
+- asset paths are relative to `/public`
+- transforms are local to parent nodes
+- `disabled` is the main visibility toggle in prefab data
+- component keys are lowercase in JSON
+- component `type` values are TitleCase
 
-### TypeScript: Typed Custom Events
+## What To Avoid
 
-Extend `GameEventMap` for type-safe custom events:
-
-```typescript
-declare module 'react-three-game' {
-  interface GameEventMap {
-    'player:death': { playerId: string; cause: string };
-    'score:change': { delta: number; total: number };
-    'level:complete': { levelId: number; time: number };
-  }
-}
-```
-
-### Common Patterns
-
-```tsx
-// Gameplay controller
-function GameController() {
-  const [score, setScore] = useState(0);
-
-  useGameEvent('score:change', ({ total }) => setScore(total), []);
-  useGameEvent('player:death', () => setGameOver(true), []);
-
-  return <ScoreUI score={score} />;
-}
-
-// Pickup system
-useGameEvent('sensor:enter', (payload) => {
-  if (payload.sourceEntityId.startsWith('coin-')) {
-    gameEvents.emit('score:change', { delta: 10, total: score + 10 });
-    removeEntity(payload.sourceEntityId);
-  }
-}, [score]);
-```
+- Do not treat the framework like a sealed engine separate from R3F.
+- Do not overuse `PrefabEditor` when `PrefabRoot` or plain R3F is enough.
+- Do not mix editor state and scene state into one abstraction.
+- Do not bypass simple React composition when it already solves the problem.
 
