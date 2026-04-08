@@ -14,7 +14,7 @@ Use it to keep generated code and explanations aligned with the current scene/en
 Treat `react-three-game` as an authored scene layer on top of React Three Fiber, not as a separate engine.
 
 - Use plain R3F / Three.js for behavior, controllers, and procedural logic.
-- Use `SceneView` for rendering authored scene JSON.
+- Use `PrefabRoot` for rendering authored scene JSON.
 - Use `SceneEditor` for authoring UI, transform gizmos, and play/edit mode.
 
 Prefer the lowest layer that solves the request.
@@ -24,7 +24,8 @@ Prefer the lowest layer that solves the request.
 Use scene/entity language in explanations and generated code.
 
 - `SceneEditor`: editor shell
-- `SceneView`: pure renderer
+- `PrefabRoot`: pure renderer
+- `SceneView`: alias for `PrefabRoot`
 - `Scene`: imperative scene handle from the editor ref
 - `Entity`: a node handle inside the scene
 - `EntityComponent`: handle returned by `entity.getComponent(...)`
@@ -59,7 +60,8 @@ Prefer examples that use the actual root exports.
 Common root exports worth suggesting:
 
 - `GameCanvas`
-- `SceneView`
+- `PrefabRoot`
+- `SceneView` (alias)
 - `SceneEditor`
 - `registerComponent`
 - `useEditorContext`
@@ -70,6 +72,7 @@ Common root exports worth suggesting:
 Useful type exports:
 
 - `SceneEditorRef`, `SceneEditorProps`
+- `PrefabRootRef`, `PrefabRootProps`
 - `SceneViewRef`, `SceneViewProps`
 - `Scene`, `Entity`, `EntityComponent`
 - `FieldDefinition`, `Component`
