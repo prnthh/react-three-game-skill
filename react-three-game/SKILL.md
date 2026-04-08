@@ -7,175 +7,89 @@ description: react-three-game, a JSON-first 3D game engine built on React Three 
 
 Use this skill when building scenes or tools with `react-three-game`.
 
-## Framework Shape
+Use it to keep generated code and explanations aligned with the current scene/entity API.
 
-`react-three-game` is a wrapper over normal Three.js and React Three Fiber composition.
+## Working Model
 
-Think in layers:
+Treat `react-three-game` as an authored scene layer on top of React Three Fiber, not as a separate engine.
 
-1. Three.js and R3F are still the runtime.
-2. `PrefabRoot` renders prefab JSON into normal R3F structure.
-3. `PrefabEditor` wraps `PrefabRoot` with editor UI, selection, transform controls, and play/edit mode.
+- Use plain R3F / Three.js for behavior, controllers, and procedural logic.
+- Use `SceneView` for rendering authored scene JSON.
+- Use `SceneEditor` for authoring UI, transform gizmos, and play/edit mode.
 
-The framework should help with scene structure and tooling, then get out of the way.
+Prefer the lowest layer that solves the request.
 
-## Choose The Lowest Layer
+## Terminology
 
-Use the lowest layer that solves the task:
+Use scene/entity language in explanations and generated code.
 
-1. plain R3F / Three.js for runtime behavior or visual composition
-2. `PrefabRoot` for JSON-authored scene structure
-3. `PrefabEditor` for authoring UI and editor tooling
+- `SceneEditor`: editor shell
+- `SceneView`: pure renderer
+- `Scene`: imperative scene handle from the editor ref
+- `Entity`: a node handle inside the scene
+- `EntityComponent`: handle returned by `entity.getComponent(...)`
 
-Do not force runtime logic into prefab abstractions if a normal R3F component is clearer.
+The serialized document type is `Prefab`, and each node is a `GameObject`.
 
-## Main Pieces
+## Default API Choices
 
-### `PrefabRoot`
+When generating code or suggesting changes, prefer these patterns in order:
 
-Use `PrefabRoot` when the scene comes from prefab JSON but still lives inside a normal R3F app.
+1. `entity.getComponent(...).set(path, value)` for targeted property edits
+2. `component.update(...)` when next state depends on previous component state
+3. `entity.update(...)` or `scene.update(...)` for whole-entity changes like `disabled`, `locked`, or multi-component swaps
+4. `scene.add(node, options?)` for authored entity creation
+5. `editor.load(...)` and `editor.save()` for whole-scene replacement and persistence
 
-```tsx
-<GameCanvas>
-  <Physics>
-    <PrefabRoot data={prefab} />
-    <CustomController />
-  </Physics>
-</GameCanvas>
-```
-
-### `PrefabEditor`
-
-Use `PrefabEditor` when the user needs authoring features.
-
-- built-in canvas
-- hierarchy and inspector UI
-- selection and transform gizmos
-- play/edit mode
-
-It still accepts normal R3F children.
-
-```tsx
-<PrefabEditor initialPrefab={prefab}>
-  <CustomController />
-</PrefabEditor>
-```
+Prefer scene handles over rebuilding and replacing the whole scene tree.
 
 ## State Split
 
-Keep these separate:
+Keep editor state and scene state separate.
 
-- editor state: transform mode, selection, play/edit mode, focus, export actions
-- scene state: prefab tree content, node transforms, materials, disabled flags, children
+- `useEditorContext()` is for editor concerns like transform mode, selection, focus, and edit/play state.
+- `editor.scene`, `entity`, and `entity.getComponent(...)` are for scene content changes.
 
-Use the matching tool:
+Route scene content edits through scene handles, not editor-context helpers.
 
-- `useEditorContext()` for editor state
-- `updateNode(...)` / `updateNodeById(...)` for scene state
+## Export Surface Guidance
 
-## Quick Component Map
+Prefer examples that use the actual root exports.
 
-| Need | Component / Tool | Key props / note |
-|---|---|---|
-| local transform | `Transform` | `position`, `rotation`, `scale` |
-| primitive mesh | `Geometry` + `Material` | `geometryType`, `args`, `color`, `texture` |
-| imported asset | `Model` | `filename`, `instanced?` |
-| rigid body | `Physics` | `type`, `mass`, `restitution`, `friction`, `linearVelocity?`, `angularVelocity?`, `sensor?` |
-| authored camera | `Camera` | camera properties authored in prefab data |
-| authored lights | `SpotLight`, `DirectionalLight`, `AmbientLight` | `color`, `intensity`, light-specific props |
-| text mesh | `Text` | `text`, `font`, `size`, `depth` |
-| sky / scene backdrop | `Environment` | wrapper-style scene backdrop / lighting |
-| click interaction | `Click` | emits prefab click events for controllers |
-| editor-only control | `useEditorContext()` | editor state only |
-| prefab tree mutation | `updateNode(...)`, `updateNodeById(...)` | scene state only |
+Common root exports worth suggesting:
 
-## Composition Patterns
+- `GameCanvas`
+- `SceneView`
+- `SceneEditor`
+- `registerComponent`
+- `useEditorContext`
+- `ground`
+- `loadFiles`, `loadModel`, `loadTexture`
+- `soundManager`
 
-### Editor State Bridge
+Useful type exports:
 
-For custom editor controls, render a tiny helper component inside `PrefabEditor` and read editor state from context.
+- `SceneEditorRef`, `SceneEditorProps`
+- `SceneViewRef`, `SceneViewProps`
+- `Scene`, `Entity`, `EntityComponent`
+- `FieldDefinition`, `Component`
 
-```tsx
-function EditorStateBridge({ onReady }) {
-  const editorState = useEditorContext();
+Stay within the current root export surface.
 
-  useEffect(() => {
-    onReady(editorState);
-  }, [editorState, onReady]);
+## Scene Data Rules
 
-  return null;
-}
-```
-
-### Scene State Updates
-
-For scene changes, update the prefab tree immutably.
-
-```tsx
-const root = updateNodeById(prefab.root, 'node-id', node => ({
-  ...node,
-  disabled: true,
-}));
-```
-
-Then push the new root back through `setPrefab` or `replacePrefab`.
-
-### Hybrid Pattern
-
-Use prefab JSON for static structure and normal R3F children for dynamic behavior.
-
-Good fits:
-
-- controllers
-- procedural animation
-- postprocessing
-- debug helpers
-- runtime-only scene logic
-
-## Cookbook
-
-| Goal | Use | Key props / note |
-|---|---|---|
-| authored scene + runtime logic | `PrefabRoot` or `PrefabEditor` + normal R3F children | prefab for structure, children for behavior |
-| custom editor shell | `PrefabEditor showUI={false}` + `useEditorContext()` | bridge editor state inside a child component |
-| embedded viewer / import tool | `replacePrefab`, `addModel`, `addTexture`, `exportGLBData` | host app owns UI |
-| runtime scene change | `updateNode(...)` / `updateNodeById(...)` + `setPrefab(...)` | mutate one node, then apply new prefab |
-
-## Embedded Tools
-
-For custom tools or viewers:
-
-- use `showUI={false}` if the host app provides its own UI
-- use `replacePrefab(prefab)` to load a new scene
-- use `setPrefab(prefab)` to update current scene state
-- use `addModel(...)` / `addTexture(...)` for runtime asset injection
-- use `clearSelection()` when the host shell needs to reset editor focus state
-- use `screenshot()` or `exportGLB(...)` when the host shell needs an immediate capture/export action
-- use `exportGLBData()` for raw bytes
-
-Use `rootRef` only when lower-level scene or rigid-body access is actually needed.
-
-## Physics
-
-Physics is still Rapier plus R3F composition.
-
-- use prefab `Physics` components for authored rigid bodies
-- use `linearVelocity` / `angularVelocity` on prefab `Physics` when the initial motion can be declared in scene data
-- use custom R3F components when direct composition is simpler
-- keep detailed collision and sensor patterns in `rules/ADVANCED_PHYSICS.md`
-
-## Important Conventions
-
-- asset paths are relative to `/public`
-- transforms are local to parent nodes
-- `disabled` is the main visibility toggle in prefab data
+- transforms are local to the parent
+- `disabled` is the visibility toggle
 - component keys are lowercase in JSON
 - component `type` values are TitleCase
+- use `crypto.randomUUID()` for new entity ids
+- asset paths are relative to `/public`
 
-## What To Avoid
+## Guidance
 
-- Do not treat the framework like a sealed engine separate from R3F.
-- Do not overuse `PrefabEditor` when `PrefabRoot` or plain R3F is enough.
-- Do not mix editor state and scene state into one abstraction.
-- Do not bypass simple React composition when it already solves the problem.
+- Prefer scene/entity language consistently in both prose and code.
+- Keep runtime behavior in normal R3F components when that is clearer than pushing it into scene JSON.
+- Reach for `SceneEditor` only when the request actually needs authoring UI or editor interaction.
+- Use the current scene-handle APIs instead of whole-scene replacement for targeted mutations.
+
 
