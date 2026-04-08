@@ -15,7 +15,7 @@ Treat `react-three-game` as an authored scene layer on top of React Three Fiber,
 
 - Use plain R3F / Three.js for behavior, controllers, and procedural logic.
 - Use `PrefabRoot` for rendering authored scene JSON.
-- Use `SceneEditor` for authoring UI, transform gizmos, and play/edit mode.
+- Use `PrefabEditor` for authoring UI, transform gizmos, and play/edit mode.
 
 Prefer the lowest layer that solves the request.
 
@@ -23,9 +23,8 @@ Prefer the lowest layer that solves the request.
 
 Use scene/entity language in explanations and generated code.
 
-- `SceneEditor`: editor shell
+- `PrefabEditor`: editor shell
 - `PrefabRoot`: pure renderer
-- `SceneView`: alias for `PrefabRoot`
 - `Scene`: imperative scene handle from the editor ref
 - `Entity`: a node handle inside the scene
 - `EntityComponent`: handle returned by `entity.getComponent(...)`
@@ -61,8 +60,7 @@ Common root exports worth suggesting:
 
 - `GameCanvas`
 - `PrefabRoot`
-- `SceneView` (alias)
-- `SceneEditor`
+- `PrefabEditor`
 - `registerComponent`
 - `useEditorContext`
 - `ground`
@@ -71,9 +69,8 @@ Common root exports worth suggesting:
 
 Useful type exports:
 
-- `SceneEditorRef`, `SceneEditorProps`
+- `PrefabEditorRef`, `PrefabEditorProps`
 - `PrefabRootRef`, `PrefabRootProps`
-- `SceneViewRef`, `SceneViewProps`
 - `Scene`, `Entity`, `EntityComponent`
 - `FieldDefinition`, `Component`
 
@@ -92,7 +89,7 @@ Stay within the current root export surface.
 
 - Prefer scene/entity language consistently in both prose and code.
 - Keep runtime behavior in normal R3F components when that is clearer than pushing it into scene JSON.
-- Reach for `SceneEditor` only when the request actually needs authoring UI or editor interaction.
+- Reach for `PrefabEditor` only when the request actually needs authoring UI or editor interaction.
 - Use the current scene-handle APIs instead of whole-scene replacement for targeted mutations.
 
 
