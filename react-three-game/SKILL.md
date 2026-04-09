@@ -85,6 +85,33 @@ Stay within the current root export surface.
 - use `crypto.randomUUID()` for new entity ids
 - asset paths are relative to `/public`
 
+## Events
+
+Keep event naming simple.
+
+- the component that causes the action should define the event name
+- components that react to the action should only listen for that event name
+- use built-in defaults like `click`, `sensor:enter`, and `collision:enter` unless you need something more specific
+- use a custom name only when one action should drive multiple systems, like sound, spawning, score, or UI
+
+Rule of thumb:
+
+- `Click` and `Physics` emit events
+- `Sound` and controller components listen to events
+
+Good pattern:
+
+```json
+{
+	"click": { "type": "Click", "properties": { "eventName": "cannon:fire" } },
+	"sound": { "type": "Sound", "properties": { "path": "/sound/explode.mp3", "eventName": "cannon:fire" } }
+}
+```
+
+In that example, the click component defines the meaning of the action, and anything else can subscribe to it.
+
+That lets one click trigger multiple reactions without hard-wiring those reactions together.
+
 ## Guidance
 
 - Prefer scene/entity language consistently in both prose and code.

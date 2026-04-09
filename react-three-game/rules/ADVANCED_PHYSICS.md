@@ -489,3 +489,5 @@ Now when prefab sensors detect this body, `targetEntityId` will be `'player'`.
 - `sensor:exit` fires when something leaves a sensor zone
 - `collision:enter/exit` fires for non-sensor physics bodies
 - Entity IDs stored in `RigidBody.userData.entityId`
+- Let the component that causes the action choose the event name.
+- Let other components listen to that event name instead of inventing their own meaning for it.
