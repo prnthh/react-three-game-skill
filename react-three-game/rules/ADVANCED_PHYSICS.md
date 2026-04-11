@@ -16,7 +16,7 @@ Need physics?
     │
     ├─ Scripted animation (moving platforms, doors)
     │   └─ type: "kinematicPosition"
-    │       └─ Update transform via updateNodeById
+    │       └─ Update transform via scene.find(...).getComponent("Transform").set(...)
     │
     └─ Velocity-driven (conveyor belts, wind zones)
         └─ type: "kinematicVelocity"
@@ -190,36 +190,20 @@ function PhysicsBall() {
 
 **Alternative: Kinematic position updates**
 
-For smooth animated movement without forces, use `kinematicPosition` and update via `updateNodeById`:
+For smooth animated movement without forces, use `kinematicPosition` and update via the Scene API:
 
 ```tsx
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { PrefabEditor, updateNodeById } from 'react-three-game';
+import { PrefabEditor } from 'react-three-game';
 import type { PrefabEditorRef } from 'react-three-game';
 
 function KinematicMover({ editorRef }: { editorRef: React.RefObject<PrefabEditorRef> }) {
   useFrame(({ clock }) => {
-    const prefab = editorRef.current?.prefab;
-    if (!prefab) return;
-    
     const y = 2 + Math.sin(clock.elapsedTime * 2) * 3;
-    
-    const newRoot = updateNodeById(prefab.root, "platform", node => ({
-      ...node,
-      components: {
-        ...node.components,
-        transform: {
-          ...node.components!.transform!,
-          properties: {
-            ...node.components!.transform!.properties,
-            position: [0, y, 0]
-          }
-        }
-      }
-    }));
-    
-    editorRef.current!.setPrefab({ ...prefab, root: newRoot });
+    editorRef.current?.scene.find("platform")
+      ?.getComponent("Transform")
+      ?.set("position", [0, y, 0]);
   });
   
   return null;
@@ -367,7 +351,7 @@ Add multiple instances - they'll be automatically batched:
 - **Batching**: All instances with the same `filename` and `physics.type` are rendered in a single draw call
 - **Supported body types**: The instanced physics path is intended for `fixed` and `dynamic` bodies; use standard non-instanced physics for kinematic bodies
 - **Scale handling**: Visual scale is applied per-instance, but collider scale may differ
-- **Transform updates**: Use `updateNodeById` to move instances (triggers re-sync)
+- **Transform updates**: Use scene API to move instances (triggers re-sync)
 - **Memory**: One set of GPU buffers shared across all instances
 
 ## Sensors & Collision Events
