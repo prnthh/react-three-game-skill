@@ -201,7 +201,7 @@ import type { PrefabEditorRef } from 'react-three-game';
 function KinematicMover({ editorRef }: { editorRef: React.RefObject<PrefabEditorRef> }) {
   useFrame(({ clock }) => {
     const y = 2 + Math.sin(clock.elapsedTime * 2) * 3;
-    editorRef.current?.scene.find("platform")
+    editorRef.current?.scene.find("platform-id")
       ?.getComponent("Transform")
       ?.set("position", [0, y, 0]);
   });

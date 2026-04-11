@@ -96,13 +96,13 @@ Prefer these patterns in order (most targeted first):
 
 ```tsx
 // 1. Set a single property
-scene.find("ball")?.getComponent("Transform")?.set("position", [5, 0, 0]);
+scene.find("ball-id")?.getComponent("Transform")?.set("position", [5, 0, 0]);
 
 // 2. Update when next state depends on previous
-scene.find("ball")?.getComponent("Transform")?.update(p => ({ ...p, position: [p.position[0] + 1, 0, 0] }));
+scene.find("ball-id")?.getComponent("Transform")?.update(p => ({ ...p, position: [p.position[0] + 1, 0, 0] }));
 
 // 3. Whole-entity changes (disable, lock, multi-component swaps)
-scene.update("ball", node => ({ ...node, disabled: true }));
+scene.update("ball-id", node => ({ ...node, disabled: true }));
 
 // 4. Spawn a new entity
 scene.create("Cube", { geometry: { type: "Geometry", properties: { geometryType: "box" } } });
