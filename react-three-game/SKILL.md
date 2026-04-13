@@ -5,57 +5,92 @@ description: react-three-game, a JSON-first 3D game engine built on React Three 
 
 # react-three-game
 
-Authored scene layer on top of React Three Fiber. Scenes are JSON. Everything builds up from there.
+Use this skill when generating or editing scenes, prefabs, custom components, or runtime scene mutations for `react-three-game`.
 
----
+## When to use
 
-## Step 1 — The Atom: a GameObject
+- Build JSON prefabs and scene graphs.
+- Render prefabs with `PrefabRoot`.
+- Edit scenes with `PrefabEditor`.
+- Add custom components with `registerComponent()`.
+- Mutate authored scenes through the `Scene` API.
 
-Every entity is a `GameObject` with components keyed lowercase, types TitleCase:
+## Core schema
 
-```json
-{
-  "id": "box1",
-  "components": {
-    "transform": { "type": "Transform", "properties": { "position": [0, 1, 0] } },
-    "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [1, 1, 1] } },
-    "material": { "type": "Material", "properties": { "color": "#ff0000" } }
-  }
+Scenes are JSON prefabs with a single root node.
+
+```ts
+interface Prefab {
+  id?: string;
+  name?: string;
+  root: GameObject;
+}
+
+interface GameObject {
+  id: string;
+  name?: string;
+  disabled?: boolean;
+  locked?: boolean;
+  children?: GameObject[];
+  components?: Record<string, ComponentData | undefined>;
+}
+
+interface ComponentData {
+  type: string;
+  properties: Record<string, any>;
 }
 ```
 
-Rules:
-- `id` — use `crypto.randomUUID()` for new ones
-- `disabled` — visibility toggle
-- `children` — nested GameObjects (transforms are parent-relative)
-- Asset paths relative to `/public` (e.g. `"/textures/floor.png"`)
-- Rotations in radians (`1.57` = 90°)
+Conventions:
 
----
+- Component keys are lowercase in JSON.
+- Component `type` names are TitleCase.
+- Transforms are local to the parent.
+- Rotations use radians.
+- Asset paths are relative to `/public`.
+- Use `crypto.randomUUID()` for new node ids.
 
-## Step 2 — A Scene: the Prefab
-
-Wrap GameObjects in a Prefab with a root node:
+Example:
 
 ```json
 {
   "root": {
     "id": "scene",
     "children": [
-      { "id": "box1", "components": { ... } },
-      { "id": "light1", "components": { ... } }
+      {
+        "id": "crate",
+        "components": {
+          "transform": { "type": "Transform", "properties": { "position": [0, 1, 0] } },
+          "geometry": { "type": "Geometry", "properties": { "geometryType": "box", "args": [1, 1, 1] } },
+          "material": { "type": "Material", "properties": { "color": "#c97316" } }
+        }
+      }
     ]
   }
 }
 ```
 
----
+## Rendering model
 
-## Step 3 — Render It: PrefabRoot
+`PrefabRoot` uses an implicit composition model.
 
-Render a prefab inside a standard R3F canvas. Add `<Physics>` if you need physics.
+- `Transform` is applied by the renderer as the node's outer transform.
+- `Geometry` + `Material` are special-cased into the node's primary mesh content.
+- `Model` is also special-cased as primary content when non-instanced.
+- `Physics` is a renderer-owned outer wrapper.
+- Every other component `View` composes around the current subtree by default.
+- A component can opt into `composition: "sibling"` if it must render next to the subtree instead of wrapping it.
 
-```jsx
+Important consequence:
+
+- Components like `Environment` should usually wrap, because `<Environment>{children}</Environment>` uses children to generate the envmap.
+- Do not reintroduce broad special-case composition in custom components when the default wrap behavior is enough.
+
+## PrefabRoot
+
+Use `PrefabRoot` for pure rendering inside a normal R3F scene.
+
+```tsx
 import { Physics } from '@react-three/rapier';
 import { GameCanvas, PrefabRoot } from 'react-three-game';
 
@@ -66,150 +101,236 @@ import { GameCanvas, PrefabRoot } from 'react-three-game';
 </GameCanvas>
 ```
 
-This is the lightest option. Use it for production gameplay, embedding, or headless rendering.
+Current props:
 
----
+- `data?: Prefab`
+- `store?: PrefabStoreApi`
+- `editMode?: boolean`
+- `selectedId?: string | null`
+- `onSelect?: (id: string | null) => void`
+- `onClick?: (event, entity) => void`
+- `onObjectRefChange?: (id, object) => void`
+- `basePath?: string`
 
-## Step 4 — Edit It: PrefabEditor
+Use `data` for static rendering and `store` when an external Zustand store owns the prefab state.
 
-Add authoring UI, transform gizmos, inspector, play/pause, undo/redo:
+## PrefabEditor
 
-```jsx
+Use `PrefabEditor` when you want managed authoring UI, history, selection, inspector editing, and play/edit mode.
+
+```tsx
 import { PrefabEditor } from 'react-three-game';
 
-<PrefabEditor initialPrefab={prefabData} onPrefabChange={setData} />
+<PrefabEditor
+  initialPrefab={prefabData}
+  onChange={setPrefabData}
+/>
 ```
 
-Physics activates in play mode only. Keyboard: **T** translate, **R** rotate, **S** scale.
+Notes:
 
----
+- Use `onChange` to receive prefab updates.
+- `mode` is `edit` or `play`.
+- Physics is enabled in play mode and paused in edit mode.
+- `children` render inside the editor canvas.
 
-## Step 5 — Mutate It: Scene API
+Useful editor ref methods:
 
-Access the imperative scene handle from the editor ref:
-
-```tsx
-const scene = editorRef.current.scene;
+```ts
+editorRef.current?.save();
+editorRef.current?.load(prefab, { resetHistory: true });
+editorRef.current?.exportGLB();
+editorRef.current?.exportGLBData();
+editorRef.current?.screenshot();
+editorRef.current?.scene;
 ```
 
-Prefer these patterns in order (most targeted first):
+## Scene API
+
+The editor exposes a live imperative `Scene` handle.
 
 ```tsx
-// 1. Set a single property
-scene.find("ball-id")?.getComponent("Transform")?.set("position", [5, 0, 0]);
+const scene = editorRef.current?.scene;
 
-// 2. Update when next state depends on previous
-scene.find("ball-id")?.getComponent("Transform")?.update(p => ({ ...p, position: [p.position[0] + 1, 0, 0] }));
+scene?.find('player')?.getComponent('Transform')?.set('position', [5, 0, 0]);
+scene?.find('player')?.getComponent('Transform')?.update(props => ({
+  ...props,
+  position: [props.position[0] + 1, props.position[1], props.position[2]],
+}));
 
-// 3. Whole-entity changes (disable, lock, multi-component swaps)
-scene.update("ball-id", node => ({ ...node, disabled: true }));
-
-// 4. Spawn a new entity
-scene.create("Cube", { geometry: { type: "Geometry", properties: { geometryType: "box" } } });
-
-// 5. Add authored node or remove
-scene.add(gameObjectNode, { parentId: "root" });
-scene.remove("ball");
+scene?.update('enemy', node => ({ ...node, disabled: true }));
+scene?.create('Cube', {
+  geometry: { type: 'Geometry', properties: { geometryType: 'box' } },
+});
+scene?.add(node, { parentId: 'root' });
+scene?.remove('enemy');
 ```
 
-`useEditorContext()` is for editor concerns (selection, transform mode, play state) — not scene content.
+Prefer:
 
----
+- `component.set(path, value)` for focused property writes.
+- `component.update(fn)` when next state depends on previous state.
+- `scene.update(id, fn)` for whole-node changes.
 
-## Step 6 — Add Behavior: Custom Components
+## API choice guide
 
-Register before rendering `<PrefabEditor>`:
+Prefer the narrowest API that matches the job.
+
+### 1. Inside a component `View`
+
+Use runtime hooks.
+
+- `useEntityRuntime()` for `editMode`, `nodeId`, and live getters.
+- `useEntityObjectRef()` when you need the current `Object3D`.
+- `useEntityRigidBodyRef()` when you need raw Rapier body methods.
+
+This is the preferred API inside custom components because it is node-local and does not require reaching back through an editor ref.
+
+### 2. Outside component views, but still operating on authored prefab nodes
+
+Use the `Scene` API.
+
+- Use `scene.find(id)?.getComponent(name)` for property edits.
+- Use `scene.update(id, fn)` for whole-node mutations.
+- Use `scene.create()` / `scene.add()` / `scene.remove()` for lifecycle changes.
+
+This is the preferred API for editor children, gameplay controllers, and demo logic.
+
+### 3. Drop to `entity.object` or `entity.rigidBody` only when needed
+
+Use `scene.find(id)?.object` or `scene.find(id)?.rigidBody` only when you need capabilities the component/property API does not expose directly, for example:
+
+- reading world position or world rotation
+- calling raw Rapier methods like `applyImpulse()`
+- integrating with lower-level Three.js APIs
+
+Rule of thumb:
+
+- If you are setting authored component properties, prefer `getComponent().set()` or `update()`.
+- If you need world-space transforms or physics engine methods, use `object` or `rigidBody`.
+- Avoid using raw object/body access when a typed component mutation is enough.
+
+## Custom components
+
+Register custom components before rendering `PrefabRoot` or `PrefabEditor`.
 
 ```tsx
-import { Component, registerComponent, FieldRenderer } from 'react-three-game';
+import { FieldRenderer, registerComponent, type Component, type FieldDefinition } from 'react-three-game';
+
+const fields: FieldDefinition[] = [
+  { name: 'speed', type: 'number', label: 'Speed', step: 0.1 },
+];
 
 const Rotator: Component = {
   name: 'Rotator',
   Editor: ({ component, onUpdate }) => (
-    <FieldRenderer fields={[{ name: 'speed', type: 'number', step: 0.1 }]} values={component.properties} onChange={onUpdate} />
+    <FieldRenderer fields={fields} values={component.properties} onChange={onUpdate} />
   ),
-  View: ({ properties, children }) => <group>{children}</group>,
-  defaultProperties: { speed: 1 }
+  View: ({ children }) => <group>{children}</group>,
+  defaultProperties: { speed: 1 },
 };
 
 registerComponent(Rotator);
 ```
 
-Use `useFrame` inside `View` for runtime behavior. Field types: `vector3`, `number`, `string`, `color`, `boolean`, `select`, `custom`.
+Composition guidance:
 
----
+- The default component behavior is to wrap the current subtree.
+- Only use `composition: "sibling"` when the component truly must render alongside the subtree.
+- Prefer keeping custom `View` implementations structurally naive and letting `PrefabRoot` own geometry/material/model/physics special cases.
 
-## Step 7 — Wire Events
+## Built-in components
 
-The component that causes the action defines the event name. Listeners subscribe to it.
+- `Transform`: local `position`, `rotation`, `scale`
+- `Geometry`: `geometryType`, `args`
+- `Material`: `color`, `texture`, `metalness`, `roughness`, `repeat`, `repeatCount`, normal map options
+- `Physics`: rigid body and collider settings, sensor and collision events
+- `Model`: `filename`, `instanced`, repeat axes
+- `AmbientLight`
+- `PointLight`
+- `SpotLight`
+- `DirectionalLight`
+- `Environment`
+- `Camera`
+- `Text`
+- `Click`
+- `Sound`
+
+## Events
+
+Built-in event patterns:
+
+- `click`
+- `sensor:enter`
+- `sensor:exit`
+- `collision:enter`
+- `collision:exit`
+
+Example:
 
 ```json
 {
-  "click": { "type": "Click", "properties": { "eventName": "cannon:fire" } },
-  "sound": { "type": "Sound", "properties": { "path": "/sound/explode.mp3", "eventName": "cannon:fire" } }
+  "click": { "type": "Click", "properties": { "eventName": "door:open" } },
+  "sound": { "type": "Sound", "properties": { "eventName": "door:open", "clips": ["/sound/door-open.mp3"] } }
 }
 ```
 
-Built-in events: `click`, `sensor:enter`, `sensor:exit`, `collision:enter`, `collision:exit`. Use custom names when one action drives multiple systems.
+## Useful exports
 
----
+Values:
 
-## Step 8 — Export: JSON → GLB
+- `GameCanvas`
+- `PrefabRoot`
+- `PrefabEditor`
+- `PrefabEditorMode`
+- `registerComponent`
+- `useEditorContext`
+- `createPrefabStore`
+- `prefabStoreToPrefab`
+- `usePrefabStoreApi`
+- `createScene`
+- `denormalizePrefab`
+- `createModelNode`
+- `createImageNode`
+- `findComponent`
+- `findComponentEntry`
+- `hasComponent`
+- `gameEvents`
+- `useGameEvent`
+- `loadFiles`
+- `loadModel`
+- `loadSound`
+- `loadTexture`
+- `exportGLB`
+- `exportGLBData`
+- `computeParentWorldMatrix`
+- `ground`
+- `soundManager`
 
-```tsx
-import { exportGLBData } from 'react-three-game';
+Types:
 
-const glbData = await exportGLBData(editorRef.current.rootRef.current.root);
-// ArrayBuffer ready for upload/storage
-```
+- `Prefab`
+- `GameObject`
+- `ComponentData`
+- `Component`
+- `ComponentViewProps`
+- `PrefabRootProps`
+- `PrefabEditorProps`
+- `PrefabEditorRef`
+- `Scene`
+- `Entity`
+- `EntityComponent`
+- `PrefabStoreApi`
+- `PrefabStoreState`
+- `FieldDefinition`
+- `FieldType`
 
----
+## Working rules for the agent
 
-## Built-in Components
-
-| Type | Key Properties |
-|------|----------------|
-| `Transform` | `position`, `rotation` (radians), `scale` — all `[x,y,z]` |
-| `Geometry` | `geometryType`: box/sphere/plane/cylinder, `args`: dimensions |
-| `Material` | `color`, `texture?`, `metalness?`, `roughness?`, `repeat?`, `repeatCount?` |
-| `Physics` | `type`: dynamic/fixed/kinematicPosition/kinematicVelocity, `sensor?`, `ccd?`, `mass?` |
-| `Model` | `filename` (GLB/FBX), `instanced?` for GPU batching |
-| `SpotLight` | `color`, `intensity`, `angle`, `penumbra`, `castShadow?` |
-| `DirectionalLight` | `color`, `intensity`, `castShadow?`, `targetOffset?` |
-| `AmbientLight` | `color`, `intensity` |
-| `Text` | `text`, `font`, `size`, `depth`, `color` |
-| `Sound` | `path`, `eventName`, `volume?`, `loop?` |
-| `Click` | `eventName` |
-| `Camera` | camera override |
-| `Environment` | HDRI/skybox |
-
-### Geometry args
-
-| geometryType | args |
-|---|---|
-| box | `[width, height, depth]` |
-| sphere | `[radius, wSeg, hSeg]` |
-| plane | `[width, height]` |
-| cylinder | `[rTop, rBottom, height, segments]` |
-
----
-
-## Module Internals (for library contributors)
-
-Three files, one concern each, no circular deps:
-
-| File | Concern |
-|------|---------|
-| `prefab.ts` | Pure data: construction, normalization, tree ops. No React. |
-| `prefabStore.ts` | Zustand store + React hooks over `PrefabState`. |
-| `scene.ts` | Imperative `Scene`/`Entity`/`EntityComponent` handles. |
-
----
-
-## Exports Surface
-
-Values: `GameCanvas`, `PrefabRoot`, `PrefabEditor`, `registerComponent`, `useEditorContext`, `createScene`, `createPrefabStore`, `denormalizePrefab`, `createModelNode`, `createImageNode`, `ground`, `loadFiles`, `loadModel`, `loadTexture`, `soundManager`, `exportGLB`, `exportGLBData`
-
-Types: `PrefabEditorRef`, `PrefabEditorProps`, `PrefabRootRef`, `PrefabRootProps`, `Scene`, `Entity`, `EntityComponent`, `PrefabStoreApi`, `PrefabStoreState`, `Prefab`, `GameObject`, `ComponentData`, `FieldDefinition`, `Component`
+- Preserve the JSON-first scene model.
+- Prefer minimal prefab edits over broad rewrites.
+- Keep custom components simple; let the renderer own transform, geometry/material, model, and physics behavior.
+- Prefer the `Scene` API for targeted live updates instead of rebuilding entire prefabs.
+- When documenting or generating examples, use the current API names exactly as exported.
 
 

@@ -31,6 +31,68 @@ Need physics?
 
 **Performance tip**: Use `fixed` for anything that never moves - it's cheapest.
 
+## General Player Controller Pattern
+
+Treat a player controller as two layers:
+
+- **Authored entity data** in the prefab: `Transform`, `Physics`, visuals, sounds, sensors, and any controller tuning properties.
+- **Runtime control logic** in a custom component `View`: input, camera coupling, ground checks, velocity changes, jump logic, and gameplay events.
+
+Preferred architecture:
+
+- Put the player body in prefab data so it can be selected, tuned, and serialized.
+- Attach a custom component such as `FirstPersonPlayer` or `ThirdPersonPlayer` to that same node.
+- Inside the component `View`, use `useEntityRigidBodyRef()` for body control and `useEntityRuntime()` for edit/play awareness.
+- Keep transient state like key presses, timers, and cached velocity in refs, not prefab properties.
+- Keep authored tuning values like `maxSpeed`, `jumpSpeed`, `groundAccel`, and event names in component properties.
+
+Rule of thumb for body type:
+
+- Use **dynamic** when the player should behave like a real physics body and interact naturally with forces, slopes, and other moving bodies.
+- Use **kinematicPosition** when the player should feel fully game-authored and you want direct positional control.
+- Avoid mutating `Transform` directly for a dynamic player every frame; drive the rigid body instead.
+
+Typical control loop:
+
+1. Read input into refs.
+2. Read camera or facing direction.
+3. Detect grounded state with a raycast or sensor.
+4. Compute desired planar motion.
+5. Apply that motion through rigid body velocity or impulses.
+6. Emit gameplay events like footsteps, landing, dash, or jump.
+
+Keep responsibilities separate:
+
+- **Physics body** decides collision and movement.
+- **Camera** reads from the player, but does not own the player state.
+- **Controller component** translates input into body motion.
+- **Scene/gameplay systems** listen to events instead of reaching into controller internals.
+
+Minimal shape:
+
+```tsx
+function PlayerControllerView({ properties, children }: { properties: any; children?: React.ReactNode }) {
+  const { editMode } = useEntityRuntime();
+  const rigidBodyRef = useEntityRigidBodyRef();
+  const inputRef = useRef({ forward: false, backward: false, left: false, right: false, jump: false });
+
+  useBeforePhysicsStep((world) => {
+    const rigidBody = rigidBodyRef.current;
+    if (!rigidBody || editMode) return;
+
+    // 1. read input refs
+    // 2. determine facing/camera direction
+    // 3. ground probe
+    // 4. compute desired motion
+    // 5. apply via setLinvel / impulses
+  });
+
+  return <>{children}</>;
+}
+```
+
+This pattern scales to first-person, third-person, top-down, vehicle, and AI-driven actors without changing the underlying prefab/runtime split.
+
 ## Physics Material Properties
 
 Complete reference for `Physics` component properties:
@@ -106,7 +168,19 @@ Use `linearVelocity` and `angularVelocity` for initial motion that belongs in pr
 
 ## Force & Impulse Application
 
-Access RigidBody refs via `PrefabRootRef.rigidBodyRefs` to apply physics forces to prefab objects:
+Use the current runtime APIs to access rigid bodies:
+
+- `editorRef.current?.scene.find(id)?.rigidBody` for authored prefab entities.
+- `prefabRootRef.current?.getRigidBody(id)` when you own a `PrefabRoot` ref directly.
+- `useEntityRigidBodyRef()` inside a component `View` rendered by `PrefabRoot`.
+
+Preferred order:
+
+- Inside a component `View`: `useEntityRigidBodyRef()`
+- In editor child/controller code: `scene.find(id)?.rigidBody`
+- In pure `PrefabRoot` embedding code: `PrefabRootRef.getRigidBody(id)`
+
+### Scene API access
 
 ```tsx
 import { useRef, useEffect } from 'react';
@@ -117,20 +191,11 @@ import type { RapierRigidBody } from '@react-three/rapier';
 function ForceApplier({ editorRef }: { editorRef: React.RefObject<PrefabEditorRef> }) {
   useEffect(() => {
     const interval = setInterval(() => {
-      const rootRef = editorRef.current?.rootRef.current;
-      if (!rootRef) return;
-      
-      // Access RigidBody ref by node ID
-      const rigidBody = rootRef.rigidBodyRefs.get('ball') as RapierRigidBody;
+      const rigidBody = editorRef.current?.scene.find('ball')?.rigidBody as RapierRigidBody | null;
       
       if (rigidBody) {
-        // Apply upward impulse
         rigidBody.applyImpulse({ x: 0, y: 5, z: 0 }, true);
-        
-        // Or apply continuous force
         rigidBody.addForce({ x: 0, y: 10, z: 0 }, true);
-        
-        // Apply torque
         rigidBody.applyTorqueImpulse({ x: 0, y: 1, z: 0 }, true);
       }
     }, 2000);
@@ -149,6 +214,44 @@ function Scene() {
       <ForceApplier editorRef={editorRef} />
     </PrefabEditor>
   );
+}
+```
+
+### PrefabRoot ref access
+
+```tsx
+import { useEffect, useRef } from 'react';
+import { GameCanvas, PrefabRoot } from 'react-three-game';
+import type { PrefabRootRef } from 'react-three-game';
+import type { RapierRigidBody } from '@react-three/rapier';
+
+function ForceScene({ prefab }: { prefab: any }) {
+  const rootRef = useRef<PrefabRootRef>(null);
+
+  useEffect(() => {
+    const rigidBody = rootRef.current?.getRigidBody('ball') as RapierRigidBody | null;
+    rigidBody?.applyImpulse({ x: 0, y: 5, z: 0 }, true);
+  }, []);
+
+  return <PrefabRoot ref={rootRef} data={prefab} />;
+}
+```
+
+### Inside a custom component `View`
+
+```tsx
+import { useFrame } from '@react-three/fiber';
+import { useEntityRigidBodyRef, type Component } from 'react-three-game';
+import type { RapierRigidBody } from '@react-three/rapier';
+
+function BoosterView({ children }: { children?: React.ReactNode }) {
+  const rigidBodyRef = useEntityRigidBodyRef<RapierRigidBody>();
+
+  useFrame(() => {
+    rigidBodyRef.current?.addForce({ x: 0, y: 2, z: 0 }, true);
+  });
+
+  return <>{children}</>;
 }
 ```
 
@@ -295,7 +398,7 @@ When using `"instanced": true` on models, physics behaves differently than stand
 | Aspect | Standard Physics | Instanced Physics |
 |--------|------------------|-------------------|
 | RigidBody Component | Individual `<RigidBody>` per object | Single `<InstancedRigidBodies>` group per model + supported physics type |
-| Ref Access | `rigidBodyRefs.get(nodeId)` returns single RigidBody | Not accessible via `rigidBodyRefs` |
+| Ref Access | `scene.find(nodeId)?.rigidBody` or `PrefabRootRef.getRigidBody(nodeId)` | No stable per-instance rigid body lookup |
 | Force Application | Direct per-object | Must access via InstancedRigidBodies ref |
 | Collider Type | `hull` (dynamic) or `trimesh` (fixed) | Auto-selected by instanced physics path |
 | Performance | One draw call per object | One draw call for all instances |
@@ -330,7 +433,7 @@ Add multiple instances - they'll be automatically batched:
 
 ### Force Application on Instanced Objects
 
-**Instanced physics bodies are not individually accessible.** For objects requiring force/impulse control, kinematic motion, or per-body refs, use non-instanced physics (`"instanced": false` or omit the property).
+**Instanced physics bodies are not individually addressable through the normal node-level rigid body APIs.** For objects requiring force/impulse control, kinematic motion, or stable per-body refs, use non-instanced physics (`"instanced": false` or omit the property).
 
 ### When to Use Instanced Physics
 
