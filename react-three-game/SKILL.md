@@ -372,6 +372,9 @@ Values:
 - `hasComponent`
 - `gameEvents`
 - `useGameEvent`
+- `useBeforePhysicsStep`
+- `useAfterPhysicsStep`
+- `useRapier`
 - `loadFiles`
 - `loadModel`
 - `loadSound`
