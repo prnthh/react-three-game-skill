@@ -58,12 +58,14 @@ Responsibility split:
 Minimal pattern:
 
 ```tsx
+import { useBeforePhysicsStep } from '@react-three/rapier';
+
 function PlayerControllerView({ properties, children }: { properties: any; children?: React.ReactNode }) {
   const { editMode } = useEntityRuntime();
   const rigidBodyRef = useEntityRigidBodyRef();
   const inputRef = useRef({ forward: false, backward: false, left: false, right: false, jump: false });
 
-  useBeforePhysicsStep((world) => {
+  useBeforePhysicsStep(() => {
     const rigidBody = rigidBodyRef.current;
     if (!rigidBody || editMode) return;
 
@@ -77,6 +79,8 @@ function PlayerControllerView({ properties, children }: { properties: any; child
   return <>{children}</>;
 }
 ```
+
+Use `useBeforePhysicsStep` from `@react-three/rapier` when a controller needs to run in lockstep with physics stepping. Use `useFrame` for looser per-frame runtime behavior that does not need physics-step timing.
 
 Applicable to first-person, third-person, top-down, vehicle, and AI-driven actors.
 
