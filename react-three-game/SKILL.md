@@ -75,7 +75,7 @@ Example:
 `PrefabRoot` composition rules:
 
 - `Transform` is applied by the renderer as the node's outer transform.
-- `Geometry` + `Material` are special-cased into the node's primary mesh content.
+- `Geometry` or `BufferGeometry` + `Material` are special-cased into the node's primary mesh content.
 - `Model` is also special-cased as primary content when non-instanced.
 - `Physics` is a renderer-owned outer wrapper.
 - Every other component `View` composes by wrapping the current subtree.
@@ -111,6 +111,35 @@ Props:
 - `basePath?: string`
 
 Use `data` for static prefab input. Use `store` when state is owned externally.
+
+Custom authored mesh example:
+
+```json
+{
+  "id": "triangle",
+  "components": {
+    "bufferGeometry": {
+      "type": "BufferGeometry",
+      "properties": {
+        "positions": [0, 0, 0, 1, 0, 0, 0, 1, 0],
+        "indices": [0, 1, 2],
+        "uvs": [0, 0, 1, 0, 0, 1]
+      }
+    },
+    "material": {
+      "type": "Material",
+      "properties": {
+        "texture": "textures/proto32/grid.png",
+        "repeat": true,
+        "repeatCount": [2, 2],
+        "offset": [0, 0],
+        "animateOffset": true,
+        "offsetSpeed": [0.25, 0]
+      }
+    }
+  }
+}
+```
 
 ## PrefabEditor
 
@@ -298,7 +327,8 @@ Composition:
 
 - `Transform`: local `position`, `rotation`, `scale`
 - `Geometry`: `geometryType`, `args`
-- `Material`: `color`, `texture`, `metalness`, `roughness`, `repeat`, `repeatCount`, normal map options
+- `BufferGeometry`: custom `positions`, `indices`, optional `normals`, `uvs`; default triangle includes UVs
+- `Material`: `color`, `texture`, `metalness`, `roughness`, `repeat`, `repeatCount`, `offset`, `animateOffset`, `offsetSpeed`, normal map options
 - `Physics`: rigid body and collider settings, sensor and collision events
 - `Model`: `filename`, `instanced`, repeat axes
 - `AmbientLight`
