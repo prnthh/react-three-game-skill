@@ -353,7 +353,7 @@ Composition:
 - `Geometry`: `geometryType`, `args`
 - `BufferGeometry`: custom `positions`, `indices`, optional `normals`, `uvs`; default triangle includes UVs
 - `Material`: `color`, `texture`, `metalness`, `roughness`, `repeat`, `repeatCount`, `offset`, `animateOffset`, `offsetSpeed`, normal map options
-- `Physics`: rigid body and collider settings, optional native DOM event dispatch for collision and sensor enter or exit
+- `Physics`: rigid body and collider settings, optional `gameEvents` emission for collision and sensor enter or exit
 - `Model`: `filename`, `instanced`, repeat axes
 - `AmbientLight`
 - `PointLight`
@@ -362,7 +362,7 @@ Composition:
 - `Environment`
 - `Camera`
 - `Text`
-- `Sound`: clips and playback settings, optional native DOM event listener via `eventName`
+- `Sound`: clips and playback settings, optional `gameEvents` listener via `eventName`
 
 ## Contributor notes
 
@@ -372,14 +372,15 @@ Composition:
 - `usePrefabNode(id)` and `usePrefabChildIds(id)` are the per-node subscription pattern inside renderer code.
 - New components should be added by creating the file, exporting it from `components/index.ts`, and then relying on the registry path already used by `PrefabRoot`.
 
-## Native DOM events
+## Event bus
 
-Renderable and physics components can opt into native browser events without a library-owned event bus.
+Renderable and physics components emit through the shared `gameEvents` bus.
 
-- `Geometry` and `BufferGeometry` can emit DOM `CustomEvent`s when clicked.
-- `Physics` can emit DOM `CustomEvent`s for collision and sensor enter or exit.
-- `Sound` can listen to a DOM event name and play when that event fires.
-- For custom interaction models like center-screen raycasts or look-to-interact, prefer extending normal Three scene objects and dispatching your own DOM events from that code instead of adding a parallel engine event layer.
+- `Geometry` and `BufferGeometry` can emit named click events through `gameEvents`.
+- `Physics` can emit named collision and sensor events through `gameEvents`.
+- `Sound` can subscribe to an event name and play when that bus event fires.
+- `useGameEvent()`, `usePhysicsEvent()`, and `useClickEvent()` are the standard React subscription surfaces.
+- For custom interaction models like center-screen raycasts or look-to-interact, prefer extending normal Three scene objects and emitting through `gameEvents` from that code rather than routing through browser globals.
 
 Raycast guidance:
 
@@ -424,14 +425,23 @@ Example authored physics events:
 Listening from React:
 
 ```tsx
-useEffect(() => {
-  const handleFire = () => {
-    console.log('fire');
-  };
+import { useClickEvent } from 'react-three-game';
 
-  window.addEventListener('cannon:fire', handleFire);
-  return () => window.removeEventListener('cannon:fire', handleFire);
+useClickEvent('cannon:fire', (payload) => {
+  console.log('fire', payload.sourceEntityId);
 }, []);
+```
+
+Direct subscription outside React:
+
+```ts
+import { gameEvents } from 'react-three-game';
+
+const stop = gameEvents.on('target:hit', (payload) => {
+  console.log(payload.sourceEntityId, payload.targetEntityId);
+});
+
+stop();
 ```
 
 ## Useful exports
@@ -443,6 +453,10 @@ Values:
 - `PrefabEditor`
 - `PrefabEditorMode`
 - `registerComponent`
+- `gameEvents`
+- `useGameEvent`
+- `usePhysicsEvent`
+- `useClickEvent`
 - `useEditorContext`
 - `createPrefabStore`
 - `usePrefabStoreApi`
@@ -468,6 +482,16 @@ Types:
 - `Prefab`
 - `PrefabRootRef`
 - `GameObject`
+- `EntityComponent`
+- `Entity`
+- `EntityData`
+- `EntityUpdate`
+- `Scene`
+- `SceneUpdates`
+- `PropertyPath`
+- `GameEventMap`
+- `PhysicsEventPayload`
+- `ClickEventPayload`
 - `ComponentData`
 - `Component`
 - `ComponentViewProps`
