@@ -106,7 +106,6 @@ Props:
 - `editMode?: boolean`
 - `selectedId?: string | null`
 - `onSelect?: (id: string | null) => void`
-- `onClick?: (event, entity) => void`
 - `onObjectRefChange?: (id, object) => void`
 - `basePath?: string`
 
@@ -338,8 +337,8 @@ Composition:
 - `Geometry`: `geometryType`, `args`
 - `BufferGeometry`: custom `positions`, `indices`, optional `normals`, `uvs`; default triangle includes UVs
 - `Material`: `color`, `texture`, `metalness`, `roughness`, `repeat`, `repeatCount`, `offset`, `animateOffset`, `offsetSpeed`, normal map options
-- `Physics`: rigid body and collider settings
-- `Model`: `filename`, `instanced`, repeat axes
+- `Physics`: rigid body and collider settings, optional native DOM event dispatch for collision and sensor enter or exit
+- `Model`: `filename`, `instanced`, repeat axes, optional native click event dispatch when non-instanced
 - `AmbientLight`
 - `PointLight`
 - `SpotLight`
@@ -347,7 +346,62 @@ Composition:
 - `Environment`
 - `Camera`
 - `Text`
-- `Sound`
+- `Sound`: clips and playback settings, optional native DOM event listener via `eventName`
+
+## Native DOM events
+
+Renderable and physics components can opt into native browser events without a library-owned event bus.
+
+- `Geometry`, `BufferGeometry`, and non-instanced `Model` can emit DOM `CustomEvent`s when clicked.
+- `Physics` can emit DOM `CustomEvent`s for collision and sensor enter or exit.
+- `Sound` can listen to a DOM event name and play when that event fires.
+
+Example authored click event on geometry:
+
+```json
+{
+  "geometry": {
+    "type": "Geometry",
+    "properties": {
+      "geometryType": "cylinder",
+      "args": [0.45, 0.28, 1.8, 24],
+      "emitClickEvent": true,
+      "clickEventName": "cannon:fire"
+    }
+  }
+}
+```
+
+Example authored physics events:
+
+```json
+{
+  "physics": {
+    "type": "Physics",
+    "properties": {
+      "type": "fixed",
+      "colliders": "cuboid",
+      "emitCollisionEnterEvent": true,
+      "collisionEnterEventName": "target:hit",
+      "emitCollisionExitEvent": true,
+      "collisionExitEventName": "target:reset"
+    }
+  }
+}
+```
+
+Listening from React:
+
+```tsx
+useEffect(() => {
+  const handleFire = () => {
+    console.log('fire');
+  };
+
+  window.addEventListener('cannon:fire', handleFire);
+  return () => window.removeEventListener('cannon:fire', handleFire);
+}, []);
+```
 
 ## Useful exports
 

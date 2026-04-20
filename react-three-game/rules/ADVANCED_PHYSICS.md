@@ -109,6 +109,14 @@ Applicable to first-person, third-person, top-down, vehicle, and AI-driven actor
 | `activeCollisionTypes` | `'all'` | - | Enable kinematic/fixed collision detection (default: dynamic only) |
 | `collisionGroups` | `number` | - | Rapier collision groups bitfield |
 | `solverGroups` | `number` | - | Rapier solver groups bitfield |
+| `emitSensorEnterEvent` | `boolean` | `false` | Dispatch a DOM `CustomEvent` when a sensor intersection starts |
+| `sensorEnterEventName` | `string` | `''` | Browser event name for sensor enter |
+| `emitSensorExitEvent` | `boolean` | `false` | Dispatch a DOM `CustomEvent` when a sensor intersection ends |
+| `sensorExitEventName` | `string` | `''` | Browser event name for sensor exit |
+| `emitCollisionEnterEvent` | `boolean` | `false` | Dispatch a DOM `CustomEvent` when a collision starts |
+| `collisionEnterEventName` | `string` | `''` | Browser event name for collision enter |
+| `emitCollisionExitEvent` | `boolean` | `false` | Dispatch a DOM `CustomEvent` when a collision ends |
+| `collisionExitEventName` | `string` | `''` | Browser event name for collision exit |
 
 **Example - Bouncy Ball**:
 ```json
@@ -483,6 +491,8 @@ Best handled with standard non-instanced physics:
 
 Sensors detect intersections without physical contact response. Use them when you need trigger volumes, and handle the resulting gameplay logic in your own Rapier or React code.
 
+When you want authored triggers without a custom controller wrapper, you can opt into native DOM `CustomEvent` dispatch directly from the `Physics` component by setting the relevant `emit...Event` boolean and event name.
+
 ### Creating a Sensor
 
 Set `sensor: true` in the `Physics` component:
@@ -561,4 +571,4 @@ For custom `RigidBody` components that need to coordinate with authored prefab n
 
 - Sensors may overlap multiple bodies at once, so keep your own filtering logic explicit.
 - Entity IDs can still live in `RigidBody.userData.entityId` when that helps your own controller code correlate bodies.
-- Prefer direct React callbacks, store mutations, and raw Rapier methods over string-based event routing.
+- Prefer direct React callbacks, store mutations, and raw Rapier methods. When authored triggers are useful, dispatch native DOM `CustomEvent`s from `Physics` rather than using a separate game-event bus.
