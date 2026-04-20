@@ -1,11 +1,11 @@
 ---
 name: react-three-game
-description: react-three-game, a JSON-first 3D game engine built on React Three Fiber, WebGPU, and Rapier Physics.
+description: react-three-game, a JSON-first scene mounting and authoring library built on React Three Fiber, WebGPU, and Rapier Physics.
 ---
 
 # react-three-game
 
-Reference for scenes, prefabs, custom components, and runtime scene mutation in `react-three-game`.
+Reference for prefabs, scene mounting, custom components, and direct Three.js or Rapier access in `react-three-game`.
 
 ## Scope
 
@@ -13,7 +13,7 @@ Reference for scenes, prefabs, custom components, and runtime scene mutation in 
 - Render prefabs with `PrefabRoot`.
 - Edit scenes with `PrefabEditor`.
 - Add custom components with `registerComponent()`.
-- Mutate authored scenes through the `Scene` API.
+- Mutate authored scenes through the prefab store or the editor/root refs.
 
 ## Schema
 
@@ -164,40 +164,60 @@ Notes:
 Editor ref:
 
 ```ts
+editorRef.current?.root;
+editorRef.current?.store;
+editorRef.current?.getObject('player');
+editorRef.current?.getRigidBody('player');
+editorRef.current?.addNode(node, { parentId: 'root' });
 editorRef.current?.save();
 editorRef.current?.load(prefab, { resetHistory: true });
 editorRef.current?.exportGLB();
 editorRef.current?.exportGLBData();
 editorRef.current?.screenshot();
-editorRef.current?.scene;
 ```
 
-## Scene API
+## Direct runtime access
 
-Live imperative scene handle exposed by `PrefabEditorRef`.
+Use the surface that matches where you are operating.
 
 ```tsx
-const scene = editorRef.current?.scene;
+const root = editorRef.current?.root;
+const store = editorRef.current?.store;
+const object = editorRef.current?.getObject('player');
+const rigidBody = editorRef.current?.getRigidBody('player');
 
-scene?.find('player')?.getComponent('Transform')?.set('position', [5, 0, 0]);
-scene?.find('player')?.getComponent('Transform')?.update(props => ({
-  ...props,
-  position: [props.position[0] + 1, props.position[1], props.position[2]],
+store?.getState().updateNode('player', (node) => ({
+  ...node,
+  components: {
+    ...node.components,
+    transform: {
+      type: 'Transform',
+      properties: {
+        ...node.components?.transform?.properties,
+        position: [5, 0, 0],
+      },
+    },
+  },
 }));
 
-scene?.update('enemy', node => ({ ...node, disabled: true }));
-scene?.create('Cube', {
-  geometry: { type: 'Geometry', properties: { geometryType: 'box' } },
+editorRef.current?.addNode({
+  id: crypto.randomUUID(),
+  name: 'Cube',
+  components: {
+    transform: { type: 'Transform', properties: { position: [0, 1, 0] } },
+    geometry: { type: 'Geometry', properties: { geometryType: 'box' } },
+  },
 });
-scene?.add(node, { parentId: 'root' });
-scene?.remove('enemy');
+
+rigidBody?.applyImpulse({ x: 0, y: 5, z: 0 }, true);
+root?.getObject('player')?.position.set(0, 2, 0);
 ```
 
-Mutation surface:
+Guidance:
 
-- `component.set(path, value)` for focused property writes.
-- `component.update(fn)` when next state depends on previous state.
-- `scene.update(id, fn)` for whole-node changes.
+- Use the prefab store when you want authored data changes that stay serializable.
+- Use `getObject()` or `getRigidBody()` when you want raw Three.js or Rapier methods.
+- Use `addNode()` for spawning authored nodes into the current prefab.
 
 ## Runtime access
 
@@ -222,17 +242,16 @@ Guidance:
 
 ### 2. Outside component views, but still operating on authored prefab nodes
 
-`Scene` API.
+Use the `PrefabEditorRef` or `PrefabRootRef` directly.
 
-- Use `scene.find(id)?.getComponent(name)` for property edits.
-- Use `scene.update(id, fn)` for whole-node mutations.
-- Use `scene.create()` / `scene.add()` / `scene.remove()` for lifecycle changes.
+- Use `editorRef.current?.store.getState()` for authored prefab mutations.
+- Use `editorRef.current?.addNode()` for lifecycle changes.
+- Use `editorRef.current?.getObject(id)` and `editorRef.current?.getRigidBody(id)` for raw runtime access.
+- Use `prefabRootRef.current?.getObject(id)` and `prefabRootRef.current?.getRigidBody(id)` when you are mounting with `PrefabRoot` only.
 
-This is the primary surface for editor children, gameplay controllers, and app-level scene logic.
+### 3. Use native Three.js or Rapier objects directly
 
-### 3. Use `entity.object` or `entity.rigidBody` for engine-level access
-
-Use `scene.find(id)?.object` or `scene.find(id)?.rigidBody` for capabilities provided directly by Three.js or Rapier:
+Use `getObject(id)` or `getRigidBody(id)` for capabilities provided directly by Three.js or Rapier:
 
 - reading world position or world rotation
 - calling raw Rapier methods like `applyImpulse()`
@@ -240,7 +259,7 @@ Use `scene.find(id)?.object` or `scene.find(id)?.rigidBody` for capabilities pro
 
 Guidance:
 
-- `getComponent().set()` and `update()` write authored component properties.
+- Store mutations write authored component properties.
 - `object` and `rigidBody` expose world-space transforms and engine methods.
 
 ## Custom components
@@ -275,12 +294,11 @@ Field types:
 - `vector3`
 - `color`
 - `node` for authored node ids with searchable name/id suggestions from the current prefab
-- `event` for event names with built-in and authored event suggestions
 
 Cross-node pattern inside a `View`:
 
 ```tsx
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   FieldRenderer,
@@ -288,25 +306,16 @@ import {
   type FieldDefinition,
   useAssetRuntime,
   useEntityRuntime,
-  usePhysicsEvent,
 } from 'react-three-game';
 
 const fields: FieldDefinition[] = [
   { name: 'platformNodeId', type: 'node', label: 'Platform Node' },
-  { name: 'triggerEventName', type: 'event', label: 'Trigger Event' },
 ];
 
 function ElevatorMoverView({ properties, children }: { properties: any; children?: React.ReactNode }) {
-  const { nodeId, editMode } = useEntityRuntime();
+  const { editMode } = useEntityRuntime();
   const { getRigidBody } = useAssetRuntime();
-  const activeRef = useRef(false);
-
-  usePhysicsEvent(properties.triggerEventName ?? '', (event) => {
-    if (!properties.triggerEventName) return;
-    if (event.sourceEntityId !== nodeId) return;
-    if (event.targetEntityId !== 'player') return;
-    activeRef.current = true;
-  }, [nodeId, properties.triggerEventName]);
+  const activeRef = useRef(true);
 
   useFrame(() => {
     if (editMode || !activeRef.current) return;
@@ -329,7 +338,7 @@ Composition:
 - `Geometry`: `geometryType`, `args`
 - `BufferGeometry`: custom `positions`, `indices`, optional `normals`, `uvs`; default triangle includes UVs
 - `Material`: `color`, `texture`, `metalness`, `roughness`, `repeat`, `repeatCount`, `offset`, `animateOffset`, `offsetSpeed`, normal map options
-- `Physics`: rigid body and collider settings, sensor and collision events
+- `Physics`: rigid body and collider settings
 - `Model`: `filename`, `instanced`, repeat axes
 - `AmbientLight`
 - `PointLight`
@@ -338,43 +347,7 @@ Composition:
 - `Environment`
 - `Camera`
 - `Text`
-- `Click`
 - `Sound`
-
-## Events
-
-Built-in event names:
-
-- `click`
-- `sensor:enter`
-- `sensor:exit`
-- `collision:enter`
-- `collision:exit`
-
-Example:
-
-```json
-{
-  "click": { "type": "Click", "properties": { "eventName": "door:open" } },
-  "sound": { "type": "Sound", "properties": { "eventName": "door:open", "clips": ["/sound/door-open.mp3"] } }
-}
-```
-
-Built-in physics event payload shape:
-
-```ts
-type PhysicsEventPayload = {
-  sourceEntityId: string;
-  targetEntityId: string | null;
-  targetRigidBody: RapierRigidBody | null | undefined;
-};
-```
-
-Physics event payload fields:
-
-- `sourceEntityId`: the node that owns the sensor or collider
-- `targetEntityId`: the other prefab-authored entity, if available
-- `targetRigidBody`: raw access to the other body when needed
 
 ## Useful exports
 
@@ -392,8 +365,6 @@ Values:
 - `createImageNode`
 - `findComponent`
 - `hasComponent`
-- `gameEvents`
-- `useGameEvent`
 - `useAssetRuntime`
 - `useEntityRuntime`
 - `useEntityObjectRef`
@@ -403,8 +374,6 @@ Values:
 - `loadSound`
 - `loadTexture`
 - `exportGLB`
-- `usePhysicsEvent`
-- `useClickEvent`
 - `computeParentWorldMatrix`
 - `ground`
 - `soundManager`
@@ -420,9 +389,6 @@ Types:
 - `PrefabRootProps`
 - `PrefabEditorProps`
 - `PrefabEditorRef`
-- `Scene`
-- `Entity`
-- `EntityComponent`
 - `PrefabStoreApi`
 - `PrefabStoreState`
 - `FieldDefinition`
@@ -432,7 +398,7 @@ Types:
 
 - Preserve the JSON-first scene model.
 - Keep custom components simple and let the renderer own transform, geometry/material, model, and physics behavior.
-- Use the `Scene` API for targeted live updates.
+- Prefer prefab store updates for authored state and native object or rigid body refs for raw runtime control.
 - When documenting or generating examples, use the current API names exactly as exported.
 
 
