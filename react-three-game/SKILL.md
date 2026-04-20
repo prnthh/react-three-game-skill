@@ -192,6 +192,8 @@ const root = editorRef.current?.root;
 const store = editorRef.current?.store;
 const object = editorRef.current?.getObject('player');
 const rigidBody = editorRef.current?.getRigidBody('player');
+const playerByName = root?.getObjectByName('Player');
+const playerByMetadata = root?.getObjectByProperty('userData.prefabNodeId', 'player');
 
 store?.getState().updateNode('player', (node) => ({
   ...node,
@@ -225,6 +227,10 @@ Guidance:
 - Use the prefab store when you want authored data changes that stay serializable.
 - Use `getObject()` or `getRigidBody()` when you want raw Three.js or Rapier methods.
 - Use `addNode()` for spawning authored nodes into the current prefab.
+- Mounted wrapper `Object3D`s mirror authored metadata: `GameObject.id` -> `object.userData.prefabNodeId`, and `GameObject.name` -> `object.name` plus `object.userData.prefabNodeName`.
+- A `Data` component can author extra `object.userData` fields through `properties.data`.
+- Canonical object refs stay Three-native even when a node has `Physics`; use `getRigidBody()` separately for Rapier methods instead of expecting `getObject()` to return a rigid body.
+- Native traversal like `root.getObjectByName(name)` is convenient, but names are not guaranteed unique; prefer `getObject(id)` or `root.getObjectByProperty('userData.prefabNodeId', id)` when you need a stable authored-node reference.
 
 ## Runtime access
 
@@ -267,7 +273,9 @@ Use `getObject(id)` or `getRigidBody(id)` for capabilities provided directly by 
 Guidance:
 
 - Store mutations write authored component properties.
-- `object` and `rigidBody` expose world-space transforms and engine methods.
+- `object` is the canonical Three.js scene object for the node, including physics-backed nodes.
+- `rigidBody` is the Rapier surface for impulses, velocities, collider state, and sensors.
+- This split keeps lower-level integrations straightforward: custom raycasts, center-screen look interactions, and traversal-based tagging can work directly on normal Three objects without engine-owned wrappers getting in the way.
 
 ## Custom components
 
@@ -346,7 +354,7 @@ Composition:
 - `BufferGeometry`: custom `positions`, `indices`, optional `normals`, `uvs`; default triangle includes UVs
 - `Material`: `color`, `texture`, `metalness`, `roughness`, `repeat`, `repeatCount`, `offset`, `animateOffset`, `offsetSpeed`, normal map options
 - `Physics`: rigid body and collider settings, optional native DOM event dispatch for collision and sensor enter or exit
-- `Model`: `filename`, `instanced`, repeat axes, optional native click event dispatch when non-instanced
+- `Model`: `filename`, `instanced`, repeat axes
 - `AmbientLight`
 - `PointLight`
 - `SpotLight`
@@ -368,9 +376,16 @@ Composition:
 
 Renderable and physics components can opt into native browser events without a library-owned event bus.
 
-- `Geometry`, `BufferGeometry`, and non-instanced `Model` can emit DOM `CustomEvent`s when clicked.
+- `Geometry` and `BufferGeometry` can emit DOM `CustomEvent`s when clicked.
 - `Physics` can emit DOM `CustomEvent`s for collision and sensor enter or exit.
 - `Sound` can listen to a DOM event name and play when that event fires.
+- For custom interaction models like center-screen raycasts or look-to-interact, prefer extending normal Three scene objects and dispatching your own DOM events from that code instead of adding a parallel engine event layer.
+
+Raycast guidance:
+
+- Use `editorRef.current?.root` or `prefabRootRef.current?.root` as the traversal root.
+- Use `object.userData.prefabNodeId` to map a hit `Object3D` back to authored data.
+- Add your own tags or interaction metadata through the `Data` component so raycast code can stay scene-native.
 
 Example authored click event on geometry:
 
