@@ -119,6 +119,44 @@ Props:
 
 Use `data` for static prefab input. Use `store` when state is owned externally.
 
+Native hooks:
+
+- Components rendered under the same `Canvas` and `Physics` providers can use `useThree()`, `useFrame()`, and `useRapier()`.
+- Use `react-three-game` runtime helpers for authored-node lookup by prefab id.
+- Use native hooks for camera access, scene state, viewport size, render-loop work, Rapier world access, and lower-level physics queries.
+
+PrefabRoot ref:
+
+```tsx
+import { Physics } from '@react-three/rapier';
+import { useRef } from 'react';
+import { GameCanvas, PrefabRoot, type PrefabRootRef } from 'react-three-game';
+
+function Scene() {
+  const prefabRootRef = useRef<PrefabRootRef>(null);
+
+  const root = prefabRootRef.current?.root;
+  const playerObject = prefabRootRef.current?.getObject('player');
+  const playerBody = prefabRootRef.current?.getRigidBody('player');
+
+  return (
+    <GameCanvas>
+      <Physics>
+        <PrefabRoot ref={prefabRootRef} data={prefabData} />
+      </Physics>
+    </GameCanvas>
+  );
+}
+```
+
+Guidance:
+
+- Use a normal React `ref` to get the `PrefabRootRef` handle.
+- `root` is the mounted Three `Group` for traversal and scene-native queries.
+- `getObject(id)` returns the canonical Three `Object3D` for an authored node.
+- `getRigidBody(id)` returns the Rapier rigid body for an authored node when one exists.
+- `onObjectRefChange(id, object)` is useful when you want push-based object ref updates instead of imperative lookup.
+
 Custom authored mesh example:
 
 ```json
@@ -250,10 +288,71 @@ Node-local surface for custom components.
 Guidance:
 
 - `useEntityObjectRef()` and `useEntityRigidBodyRef()` access the current node.
+- Both hooks return live ref-like objects, so read them as `objectRef.current` and `rigidBodyRef.current`.
+- `useEntityObjectRef<T>()` is generic. Use `useEntityObjectRef<Mesh>()` when you want mesh methods and mesh-specific properties on the current node object.
+- `useEntityRigidBodyRef<RapierRigidBody>()` is the direct way to get the current node's rigid body handle.
 - `useAssetRuntime()` looks up other authored nodes for gameplay logic like elevators, doors, linked sensors, and moving platforms.
 - `useEntityRuntime()` and `useAssetRuntime()` are the runtime lookup surfaces inside component views.
+- `useThree()` is the right tool for camera, scene, viewport, pointer, raycaster, and renderer state.
+- `useRapier()` is the right tool for direct Rapier world access, query pipeline access, and lower-level physics integration.
 
-### 2. Outside component views, but still operating on authored prefab nodes
+Current node object or rigid body refs:
+
+```tsx
+import { useFrame } from '@react-three/fiber';
+import { RapierRigidBody } from '@react-three/rapier';
+import { Mesh } from 'three';
+import { useEntityObjectRef, useEntityRigidBodyRef, useEntityRuntime } from 'react-three-game';
+
+function BounceView({ children }: { children?: React.ReactNode }) {
+  const meshRef = useEntityObjectRef<Mesh>();
+  const rigidBodyRef = useEntityRigidBodyRef<RapierRigidBody>();
+  const { editMode } = useEntityRuntime();
+
+  useFrame(() => {
+    if (editMode) return;
+
+    meshRef.current?.rotateY(0.02);
+    rigidBodyRef.current?.applyImpulse({ x: 0, y: 0.2, z: 0 }, true);
+  });
+
+  return <>{children}</>;
+}
+```
+
+Ref selection rule:
+
+- Use `useEntityObjectRef()` for the mounted Three object of the current authored node.
+- Use `useEntityRigidBodyRef()` for the current authored node's Rapier body.
+- If the node renders a mesh, type the object ref as `Mesh`.
+- If you need another authored node instead of the current one, use `useAssetRuntime().getObject(id)` or `useAssetRuntime().getRigidBody(id)`.
+
+Native hooks example inside a custom component:
+
+```tsx
+import { useFrame, useThree } from '@react-three/fiber';
+import { useRapier } from '@react-three/rapier';
+import { useEntityObjectRef, useEntityRuntime } from 'react-three-game';
+
+function LookAtCameraView({ children }: { children?: React.ReactNode }) {
+  const { camera } = useThree();
+  const { world } = useRapier();
+  const object = useEntityObjectRef();
+  const { editMode } = useEntityRuntime();
+
+  useFrame(() => {
+    if (editMode) return;
+    object?.lookAt(camera.position);
+
+    // `world` stays available for lower-level Rapier queries when needed.
+    void world;
+  });
+
+  return <>{children}</>;
+}
+```
+
+### 2. Outside component views, while operating on authored prefab nodes
 
 Use the `PrefabEditorRef` or `PrefabRootRef` directly.
 
