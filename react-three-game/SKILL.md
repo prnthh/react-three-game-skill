@@ -15,6 +15,13 @@ Reference for prefabs, scene mounting, custom components, and direct Three.js or
 - Add custom components with `registerComponent()`.
 - Mutate authored scenes through the prefab store or the editor/root refs.
 
+## Repo workflow
+
+- `/src` contains the published library source.
+- `/docs` is the Next.js docs app and consumes the library via the local package link.
+- `npm run dev` runs TypeScript watch for the library and the docs app together.
+- `npm run build` emits the library to `/dist`.
+
 ## Schema
 
 JSON prefab with a single root node.
@@ -83,6 +90,7 @@ Example:
 Implications:
 
 - Components like `Environment` wrap the subtree and use `children` to generate the envmap.
+- Renderer-owned transforms, physics wrappers, and primary mesh content should stay in `PrefabRoot`, not be reimplemented in custom components.
 
 ## PrefabRoot
 
@@ -347,6 +355,14 @@ Composition:
 - `Camera`
 - `Text`
 - `Sound`: clips and playback settings, optional native DOM event listener via `eventName`
+
+## Contributor notes
+
+- WebGPU materials should use node materials like `MeshStandardNodeMaterial` or `MeshBasicNodeMaterial`, not classic `MeshStandardMaterial`.
+- Public exports in `src/index.ts` stay explicit; avoid `export *` from the package entrypoint.
+- Asset paths in authored prefab data are relative to `/public`.
+- `usePrefabNode(id)` and `usePrefabChildIds(id)` are the per-node subscription pattern inside renderer code.
+- New components should be added by creating the file, exporting it from `components/index.ts`, and then relying on the registry path already used by `PrefabRoot`.
 
 ## Native DOM events
 
