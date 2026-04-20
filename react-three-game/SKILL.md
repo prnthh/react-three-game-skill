@@ -186,6 +186,52 @@ Custom authored mesh example:
 }
 ```
 
+## Sound component
+
+Use the built-in `Sound` component in prefab JSON when you want authored sound playback.
+
+Supports:
+
+- `clips`: one or more sound asset paths.
+- `eventName`: play from a game event.
+- `autoplay`: start playback automatically in play mode.
+- `loop`: keep the clip looping.
+- `positional`: enable spatial playback attached to the node.
+- `clipMode`: `single`, `random`, or `sequence` clip selection.
+- `pitch` / `volume`: fixed playback tuning.
+- `randomizePitch` / `randomizeVolume`: variation ranges for one-shots or autoplay start.
+
+Notes:
+
+- Sound assets should be relative to `/public`, for example `/sound/hit.mp3`.
+- Sound clips are discovered through prefab asset refs and loaded by `PrefabRoot`'s asset layer before playback.
+- Positional mode uses a `PositionalAudio` node attached to the authored object.
+- Non-positional mode still uses the same playback path, but with flat attenuation settings.
+- `eventName` is good for one-shots like footsteps, hits, and triggers.
+- `autoplay` + `loop` is good for ambient beds, machinery, water, and room tone.
+
+Example:
+
+```json
+{
+  "id": "machine-hum",
+  "components": {
+    "sound": {
+      "type": "Sound",
+      "properties": {
+        "clips": ["/sound/machine-hum.mp3"],
+        "autoplay": true,
+        "loop": true,
+        "positional": true,
+        "refDistance": 2,
+        "maxDistance": 20,
+        "volume": 0.35
+      }
+    }
+  }
+}
+```
+
 ## PrefabEditor
 
 Managed authoring UI with history, selection, inspector editing, and play/edit mode.
