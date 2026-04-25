@@ -17,12 +17,12 @@ Use the matching surface for the integration point:
 
 | Situation | Surface | Purpose |
 |----------|---------|---------|
-| External system mounted beside the editor | `editorRef.current?.root`, `getNodeObject(id)`, `getNodeHandle(id, kind)` | Read mounted objects and runtime handles |
-| External system needs edit-time re-sync | `editorRef.current?.onSceneChange(listener)` | Rebuild derived state only when authored data changes |
+| External system mounted beside the editor | `useScene()`, `scene.root`, `scene.getObject(id)`, `scene.getHandle(id, kind)` | Read mounted objects and runtime handles |
+| External system needs edit-time re-sync | `useScene()`, `scene.revision` | Rebuild derived state only when authored data changes |
 | Custom component needs its own node object | `useCurrentNodeObject()` | Read and mutate the current mounted `Object3D` |
 | Custom component needs a node-local imperative handle | `useCurrentNodeHandle(kind)` | Read a live handle registered for the current node |
 | Custom component wants to expose a handle | `useAssetRuntime().registerNodeHandle(nodeId, kind, handle)` | Publish runtime state back into the tree |
-| Custom component targets another authored node | `useAssetRuntime().getNodeObject(id)` or `getNodeHandle(id, kind)` | Cross-node runtime coordination |
+| Custom component targets another authored node | `useAssetRuntime().getObject(id)` or `getHandle(id, kind)` | Cross-node runtime coordination |
 
 ## Authored physics pattern
 
@@ -75,21 +75,19 @@ This is the normal pattern for docs-side systems like collision or controller ru
 ```tsx
 import { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { type PrefabEditorRef } from 'react-three-game';
+import { useScene } from 'react-three-game';
 
-function RuntimeBinding({ editorRef }: { editorRef: React.RefObject<PrefabEditorRef | null> }) {
+function RuntimeBinding() {
   const dirtyRef = useRef(true);
+  const scene = useScene();
 
   useEffect(() => {
-    return editorRef.current?.onSceneChange(() => {
-      dirtyRef.current = true;
-    });
-  }, [editorRef]);
+    dirtyRef.current = true;
+  }, [scene.revision]);
 
   useFrame(() => {
-    const editor = editorRef.current;
-    const root = editor?.root;
-    if (!editor || !root || !dirtyRef.current) return;
+    const root = scene.root;
+    if (!root || !dirtyRef.current) return;
 
     dirtyRef.current = false;
 
@@ -97,7 +95,7 @@ function RuntimeBinding({ editorRef }: { editorRef: React.RefObject<PrefabEditor
       const nodeId = object.userData?.prefabNodeId;
       if (typeof nodeId !== 'string') return;
 
-      const node = editor.getNode(nodeId);
+      const node = scene.get(nodeId);
       const crashcatPhysics = node?.components?.crashcatPhysics;
       void crashcatPhysics;
     });
@@ -109,7 +107,7 @@ function RuntimeBinding({ editorRef }: { editorRef: React.RefObject<PrefabEditor
 
 Guidance:
 
-- Rebuild derived runtime state on `onSceneChange`, not every edit-mode frame.
+- Rebuild derived runtime state from `scene.revision`, not every edit-mode frame.
 - Keep steady-state play mode free of edit-time polling when possible.
 - Treat the mounted Three scene as the canonical runtime source of truth for transforms.
 - Treat authored prefab components as the canonical source of truth for physics and gameplay config.
@@ -150,7 +148,7 @@ const Rotator: Component = {
 };
 ```
 
-Another component or an editor child can then read that handle through `getNodeHandle(id, kind)` or `useCurrentNodeHandle(kind)`.
+Another component or an editor child can then read that handle through `getHandle(id, kind)` or `useCurrentNodeHandle(kind)`.
 
 ## Controller pattern
 
@@ -158,7 +156,7 @@ Put authored visuals and tuning on prefab nodes, and keep transient controller s
 
 - Read input into refs.
 - Read the active camera or facing direction with `useThree()`.
-- Use `useCurrentNodeObject()` or `editorRef.current?.getNodeObject(id)` for the mounted transform target.
+- Use `useCurrentNodeObject()` or `scene.getObject(id)` for the mounted transform target.
 - Keep per-frame controller state in refs, not prefab properties.
 - Emit gameplay events through `gameEvents` when needed.
 
@@ -239,6 +237,6 @@ Use `gameEvents` for gameplay events, not browser globals.
 Typical split:
 
 - `Data` stores authored runtime config.
-- `getNodeObject()` and `useCurrentNodeObject()` provide scene-native access.
-- `getNodeHandle()` and `useCurrentNodeHandle()` provide runtime-owned imperative access.
-- `onSceneChange()` provides edit-time re-sync.
+- `getObject()` and `useCurrentNodeObject()` provide scene-native access.
+- `getHandle()` and `useCurrentNodeHandle()` provide runtime-owned imperative access.
+- `scene.revision` provides edit-time re-sync.

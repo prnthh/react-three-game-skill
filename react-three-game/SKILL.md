@@ -14,7 +14,7 @@ Reference for prefabs, prefab mounting, custom components, and direct mounted Th
 - Edit prefabs with `PrefabEditor`.
 - Add custom components with `registerComponent()`.
 - Mutate authored prefabs through the editor ref.
-- Integrate external runtimes through prefab refs, handles, and `onSceneChange` subscriptions.
+- Integrate external runtimes through scene refs, handles, and `scene.revision` updates.
 
 ## Repo workflow
 
@@ -132,8 +132,8 @@ function PrefabView() {
   const prefabRootRef = useRef<PrefabRootRef>(null);
 
   const root = prefabRootRef.current?.root;
-  const playerObject = prefabRootRef.current?.getNodeObject('player');
-  const runtimeHandle = prefabRootRef.current?.getNodeHandle('player', 'runtime');
+  const playerObject = prefabRootRef.current?.getObject('player');
+  const runtimeHandle = prefabRootRef.current?.getHandle('player', 'runtime');
 
   return (
     <GameCanvas>
@@ -147,8 +147,8 @@ Guidance:
 
 - Use a normal React `ref` to get the `PrefabRootRef` handle.
 - `root` is the mounted Three `Group` for traversal and scene-native queries.
-- `getNodeObject(id)` returns the canonical Three `Object3D` for an authored node.
-- `getNodeHandle(id, kind)` returns a runtime-owned handle registered for that node and kind.
+- `getObject(id)` returns the canonical Three `Object3D` for an authored node.
+- `getHandle(id, kind)` returns a runtime-owned handle registered for that node and kind.
 
 Custom authored mesh example:
 
@@ -248,9 +248,8 @@ Editor ref:
 
 ```ts
 editorRef.current?.root;
-editorRef.current?.getNodeObject('player');
-editorRef.current?.getNodeHandle('player', 'runtime');
-editorRef.current?.onSceneChange((revision) => console.log(revision));
+editorRef.current?.getObject('player');
+editorRef.current?.getHandle('player', 'runtime');
 editorRef.current?.addNode(node, { parentId: 'root' });
 editorRef.current?.updateNode('player', update);
 editorRef.current?.updateNodes(updates);
@@ -267,8 +266,8 @@ Use the surface that matches where you are operating.
 
 ```tsx
 const root = editorRef.current?.root;
-const object = editorRef.current?.getNodeObject('player');
-const runtime = editorRef.current?.getNodeHandle('player', 'runtime');
+const object = editorRef.current?.getObject('player');
+const runtime = editorRef.current?.getHandle('player', 'runtime');
 const playerByName = root?.getObjectByName('Player');
 const playerByMetadata = root?.getObjectByProperty('userData.prefabNodeId', 'player');
 
@@ -295,24 +294,24 @@ editorRef.current?.addNode({
   },
 });
 
-prefabRootRef.current?.getNodeObject('player')?.position.set(0, 2, 0);
+prefabRootRef.current?.getObject('player')?.position.set(0, 2, 0);
 void runtime;
 ```
 
 Guidance:
 
 - Use `updateNode()` or `updateNodes()` when you want authored data changes that stay serializable.
-- Use `getNodeObject()` when you want raw Three.js methods.
-- Use `getNodeHandle()` when an external runtime has registered a node-local handle.
+- Use `getObject()` when you want raw Three.js methods.
+- Use `getHandle()` when an external runtime has registered a node-local handle.
 - Use `addNode()` for spawning authored nodes into the current prefab.
 - Mounted wrapper `Object3D`s mirror authored metadata: `GameObject.id` -> `object.userData.prefabNodeId`, and `GameObject.name` -> `object.name` plus `object.userData.prefabNodeName`.
 - A `Data` component can author extra `object.userData` fields through `properties.data`.
-- Native traversal like `root.getObjectByName(name)` is convenient, but names are not guaranteed unique; prefer `getNodeObject(id)` or `root.getObjectByProperty('userData.prefabNodeId', id)` when you need a stable authored-node reference.
+- Native traversal like `root.getObjectByName(name)` is convenient, but names are not guaranteed unique; prefer `getObject(id)` or `root.getObjectByProperty('userData.prefabNodeId', id)` when you need a stable authored-node reference.
 
-`onSceneChange` subscriptions:
+`scene.revision` updates:
 
-- `onSceneChange(listener)` is the clearest editor-side signal for authored edits.
-- Use it for edit-mode runtime re-sync work like rebuilding external colliders or refresh-once derived data.
+- `useScene()` exposes `scene.revision` as the edit-side signal for authored changes.
+- Use it for runtime re-sync work like rebuilding external colliders or refresh-once derived data after the scene commits.
 - Keep heavy rebuilds event-driven instead of polling every frame.
 
 Runtime-handle example:
@@ -365,7 +364,7 @@ Runtime hooks.
 - `useCurrentNode()` for `editMode`, `nodeId`, and live getters.
 - `useCurrentNodeObject()` when you need the current node's mounted `Object3D`.
 - `useCurrentNodeHandle(kind)` when you need a live handle registered for the current node.
-- `useAssetRuntime().getNodeObject(nodeId)` or `useAssetRuntime().getNodeHandle(nodeId, kind)` when the current component needs to target another authored node in the same prefab.
+- `useAssetRuntime().getObject(nodeId)` or `useAssetRuntime().getHandle(nodeId, kind)` when the current component needs to target another authored node in the same prefab.
 - `useAssetRuntime().registerNodeHandle(nodeId, kind, handle)` when a component needs to expose runtime state back to the tree.
 
 Node-local surface for custom components.
@@ -407,7 +406,7 @@ Ref selection rule:
 - Use `useCurrentNodeObject()` for the mounted Three object of the current authored node.
 - Use `useCurrentNodeHandle()` for the current authored node's runtime handle.
 - If the node renders a mesh, type the object ref as `Mesh`.
-- If you need another authored node instead of the current one, use `useAssetRuntime().getNodeObject(id)` or `useAssetRuntime().getNodeHandle(id, kind)`.
+- If you need another authored node instead of the current one, use `useAssetRuntime().getObject(id)` or `useAssetRuntime().getHandle(id, kind)`.
 
 Native hooks example inside a custom component:
 
@@ -435,12 +434,12 @@ Use the `PrefabEditorRef` or `PrefabRootRef` directly.
 
 - Use `editorRef.current?.updateNode()` or `updateNodes()` for authored prefab mutations.
 - Use `editorRef.current?.addNode()` for lifecycle changes.
-- Use `editorRef.current?.getNodeObject(id)` and `getNodeHandle(id, kind)` for runtime access.
-- Use `prefabRootRef.current?.getNodeObject(id)` and `getNodeHandle(id, kind)` when you are mounting with `PrefabRoot` only.
+- Use `editorRef.current?.getObject(id)` and `getHandle(id, kind)` for runtime access.
+- Use `prefabRootRef.current?.getObject(id)` and `getHandle(id, kind)` when you are mounting with `PrefabRoot` only.
 
 ### 3. Use native Three.js objects and external runtime handles directly
 
-Use `getNodeObject(id)` or `getNodeHandle(id, kind)` for capabilities provided directly by Three.js or your runtime:
+Use `getObject(id)` or `getHandle(id, kind)` for capabilities provided directly by Three.js or your runtime:
 
 - reading world position or world rotation
 - syncing authored nodes into an external runtime
@@ -505,12 +504,12 @@ const fields: FieldDefinition[] = [
 
 function ElevatorMoverView({ properties, children }: { properties: any; children?: React.ReactNode }) {
   const { editMode } = useCurrentNode();
-  const { getNodeObject } = useAssetRuntime();
+  const { getObject } = useAssetRuntime();
   const activeRef = useRef(true);
 
   useFrame(() => {
     if (editMode || !activeRef.current) return;
-    const platform = getNodeObject(properties.platformNodeId);
+    const platform = getObject(properties.platformNodeId);
     platform?.position.set(0, 4, 0);
   });
 
