@@ -288,6 +288,23 @@ handle?.setSpeed(2);
 
 `Data` merges `properties.data` into the mounted `Object3D.userData` (reserved keys like `prefabNodeId` and `prefabNodeName` are protected). Use it for small bits of authored metadata; prefer first-class custom components for systems with their own behavior.
 
+## Optional plugins
+
+Import optional systems from plugin subpaths:
+
+```tsx
+import { registerComponent } from 'react-three-game';
+import { CrashcatPhysicsComponent, CrashcatRuntime } from 'react-three-game/plugins/crashcat';
+
+registerComponent(CrashcatPhysicsComponent);
+
+<PrefabEditor initialPrefab={prefab}>
+  <CrashcatRuntime debug />
+</PrefabEditor>
+```
+
+`CrashcatPhysics` is the authored physics component, usually stored under the key `crashcatPhysics`.
+
 ## Sound
 
 ```json
@@ -345,6 +362,7 @@ const unsub = store.subscribe(s => s.nodesById['player'], () => { /* ... */ });
 ## Repo workflow
 
 - `/src` — published library.
+- `/src/plugins` — optional plugin entrypoints.
 - `/docs` — Next.js docs app, links the local library.
 - `npm run dev` — TypeScript watch + docs dev server.
 - `npm run build` — emit `/dist`.
@@ -352,6 +370,8 @@ const unsub = store.subscribe(s => s.nodesById['player'], () => { /* ... */ });
 ## Useful exports
 
 Values: `GameCanvas`, `PrefabRoot`, `PrefabEditor`, `PrefabEditorMode`, `registerComponent`, `gameEvents`, `useGameEvent`, `useClickEvent`, `useScene`, `useNode`, `useNodeObject`, `useNodeHandle`, `useAssetRuntime`, `useEditorRef`, `useEditorContext`, `usePrefabStore`, `usePrefabStoreApi`, `FieldRenderer`, `Vector3Field`, `NumberField`, `StringField`, `BooleanField`, `SelectField`, `ColorField`, `loadFiles`, `loadModel`, `loadSound`, `loadTexture`, `exportGLB`, `exportGLBData`, `regenerateIds`, `computeParentWorldMatrix`, `findComponent`, `findComponentEntry`, `hasComponent`, `createModelNode`, `createImageNode`, `denormalizePrefab`, `ground`, `soundManager`.
+
+Plugin values: `react-three-game/plugins/crashcat` exports `CrashcatRuntime`, `CrashcatPhysicsComponent`, `useCrashcat`.
 
 Types: `Prefab`, `GameObject`, `ComponentData`, `PrefabNode`, `PrefabEditorRef`, `PrefabEditorProps`, `PrefabRootProps`, `Scene`, `Component`, `ComponentViewProps`, `FieldDefinition`, `FieldType`, `NodeApi`, `LiveRef`, `AssetRuntime`, `PrefabStoreState`, `PrefabStoreApi`, `GameEventMap`, `ClickEventPayload`, `ContactEventPayload`, `LoadedModels`, `LoadedTextures`, `LoadedSounds`.
 
