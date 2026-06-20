@@ -42,7 +42,7 @@ import {
   type Component,
   type ComponentViewProps,
   type FieldDefinition,
-} from 'react-three-game';
+} from 'react-three-game/editor';
 import { proximityRuntime } from './proximityRuntime';
 
 type ProximityZoneProps = { radius?: number; eventName?: string };
@@ -80,7 +80,7 @@ Runtime:
 
 ```tsx
 import { useFrame } from '@react-three/fiber';
-import { gameEvents, PrefabEditorMode, useScene } from 'react-three-game';
+import { gameEvents, PrefabEditorMode, useScene } from 'react-three-game/editor';
 import { Vector3 } from 'three';
 
 type Zone = { radius: number; eventName?: string };
@@ -137,7 +137,7 @@ export function ProximityRuntime({ playerId = 'player' }: { playerId?: string })
 Mounting:
 
 ```tsx
-import { PrefabEditor, registerComponent } from 'react-three-game';
+import { PrefabEditor, registerComponent } from 'react-three-game/editor';
 import { ProximityRuntime, ProximityZone } from './proximity';
 
 registerComponent(ProximityZone);

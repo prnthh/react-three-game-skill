@@ -41,7 +41,6 @@ interface ComponentData {
 
 Conventions:
 
-- Component map keys are camelCase (e.g. `transform`, `directionalLight`, `crashcatPhysics`).
 - `type` is TitleCase and matches the registered `Component.name`.
 - Transforms are local to the parent. Rotations are radians.
 - Asset paths are relative to `/public`.
@@ -70,7 +69,7 @@ Conventions:
 ### PrefabRoot — pure render
 
 ```tsx
-import { GameCanvas, PrefabRoot } from 'react-three-game';
+import { GameCanvas, PrefabRoot } from 'react-three-game/viewer';
 
 <GameCanvas>
   <PrefabRoot data={prefab} />
@@ -82,7 +81,7 @@ Props: `data`, `editMode`, `selectedId`, `onSelect`, `onClick`, `onEditNodeClick
 ### PrefabEditor — authoring UI
 
 ```tsx
-import { PrefabEditor, PrefabEditorMode } from 'react-three-game';
+import { PrefabEditor, PrefabEditorMode } from 'react-three-game/editor';
 
 <PrefabEditor
   initialPrefab={prefab}
@@ -196,7 +195,7 @@ import {
   type Component,
   type ComponentViewProps,
   type FieldDefinition,
-} from 'react-three-game';
+} from 'react-three-game/editor';
 
 type RotatorProps = { speed?: number };
 
@@ -225,7 +224,7 @@ const Rotator: Component = {
 registerComponent(Rotator);
 ```
 
-`ComponentViewProps<P>` gives you `{ properties, children, position?, rotation?, scale? }`. The `position`/`rotation`/`scale` props are the node's local transform — useful if you want to render your own primary mesh instead of relying on the renderer's special-cased Geometry/Material/Model path.
+`ComponentViewProps<P>` gives you `{ properties, children, editMode?, nodeInteractionHandlers?, position?, rotation?, scale?, worldPosition?, basePath? }`. The `position`/`rotation`/`scale` props are the node's local transform; `worldPosition` is useful for components that create world-space resources; `nodeInteractionHandlers` lets custom primary renderers preserve editor selection/click behavior.
 
 ### Composition rules
 
@@ -233,7 +232,7 @@ registerComponent(Rotator);
 
 ### Field types
 
-`number`, `string`, `boolean`, `select`, `vector3`, `color`, `node` (searchable picker over the current prefab's nodes).
+`number`, `string`, `boolean`, `select`, `vector3`, `color`, `node` (searchable picker over the current prefab's nodes), `custom`.
 
 ### Cross-node access
 
@@ -288,12 +287,50 @@ handle?.setSpeed(2);
 
 `Data` merges `properties.data` into the mounted `Object3D.userData` (reserved keys like `prefabNodeId` and `prefabNodeName` are protected). Use it for small bits of authored metadata; prefer first-class custom components for systems with their own behavior.
 
+### Environment scenes
+
+Use an authored `Environment` component node for image-based lighting, and put visible sky/spheremap/backdrop geometry under that node when the scene needs a background. Do not substitute an `AmbientLight` for the environment; ambient light can lift dark materials, but it does not provide the same authored environment/background pattern.
+
+```json
+{
+  "id": "environment",
+  "name": "environment",
+  "components": {
+    "transform": { "type": "Transform", "properties": {} },
+    "environment": {
+      "type": "Environment",
+      "properties": { "intensity": 1 }
+    }
+  },
+  "children": [
+    {
+      "id": "spheremap",
+      "components": {
+        "transform": { "type": "Transform", "properties": {} },
+        "geometry": {
+          "type": "Geometry",
+          "properties": { "geometryType": "sphere", "args": [1, 32, 16] }
+        },
+        "material": {
+          "type": "Material",
+          "properties": {
+            "materialType": "basic",
+            "side": "BackSide",
+            "texture": "/textures/water1.png"
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
 ## Optional plugins
 
 Import optional systems from plugin subpaths:
 
 ```tsx
-import { registerComponent } from 'react-three-game';
+import { PrefabEditor, registerComponent } from 'react-three-game/editor';
 import { CrashcatPhysicsComponent, CrashcatRuntime } from 'react-three-game/plugins/crashcat';
 
 registerComponent(CrashcatPhysicsComponent);
@@ -303,7 +340,21 @@ registerComponent(CrashcatPhysicsComponent);
 </PrefabEditor>
 ```
 
-`CrashcatPhysics` is the authored physics component, usually stored under the key `crashcatPhysics`.
+`CrashcatPhysics` is the authored physics component.
+
+Prefab JSON should use:
+
+```json
+"crashcatPhysics": {
+  "type": "CrashcatPhysics",
+  "properties": {
+    "type": "fixed",
+    "colliders": "cuboid"
+  }
+}
+```
+
+For current physics authoring details, follow `rules/ADVANCED_PHYSICS.md`.
 
 ## Sound
 
@@ -336,7 +387,7 @@ When `eventName` is set, the component subscribes to `gameEvents[eventName]` and
 `gameEvents` is the in-app event bus. Components and runtime systems publish and subscribe through it.
 
 ```tsx
-import { gameEvents, useGameEvent, useClickEvent } from 'react-three-game';
+import { gameEvents, useGameEvent, useClickEvent } from 'react-three-game/editor';
 
 useClickEvent('cannon:fire', (payload) => {
   console.log('fire', payload.sourceEntityId);
@@ -352,7 +403,7 @@ const stop = gameEvents.on('target:hit', (payload) => { /* ... */ });
 For UI/state outside the canvas that needs to react to authored data:
 
 ```tsx
-import { usePrefabStore, usePrefabStoreApi } from 'react-three-game';
+import { usePrefabStore, usePrefabStoreApi } from 'react-three-game/editor';
 
 const selected = usePrefabStore(s => s.nodesById['player']);
 const store = usePrefabStoreApi();
@@ -369,9 +420,11 @@ const unsub = store.subscribe(s => s.nodesById['player'], () => { /* ... */ });
 
 ## Useful exports
 
-Values: `GameCanvas`, `PrefabRoot`, `PrefabEditor`, `PrefabEditorMode`, `registerComponent`, `gameEvents`, `useGameEvent`, `useClickEvent`, `useScene`, `useNode`, `useNodeObject`, `useNodeHandle`, `useAssetRuntime`, `useEditorRef`, `useEditorContext`, `usePrefabStore`, `usePrefabStoreApi`, `FieldRenderer`, `Vector3Field`, `NumberField`, `StringField`, `BooleanField`, `SelectField`, `ColorField`, `loadFiles`, `loadModel`, `loadSound`, `loadTexture`, `exportGLB`, `exportGLBData`, `regenerateIds`, `computeParentWorldMatrix`, `findComponent`, `findComponentEntry`, `hasComponent`, `createModelNode`, `createImageNode`, `denormalizePrefab`, `ground`, `soundManager`.
+`react-three-game/viewer`: `GameCanvas`, `PrefabRoot`, `PrefabEditorMode`, `registerComponent`, `gameEvents`, `useGameEvent`, `useClickEvent`, `useScene`, `useNode`, `useNodeObject`, `useNodeHandle`, `useAssetRuntime`, `loadModel`, `loadSound`, `loadTexture`, `findComponent`, `findComponentEntry`, `hasComponent`, `createModelNode`, `createImageNode`, `denormalizePrefab`, `ground`, `soundManager`.
 
-Plugin values: `react-three-game/plugins/crashcat` exports `CrashcatRuntime`, `CrashcatPhysicsComponent`, `useCrashcat`.
+`react-three-game/editor`: everything from `/viewer`, plus `PrefabEditor`, `registerBuiltinComponents`, `useEditorRef`, `useEditorContext`, `usePrefabStore`, `usePrefabStoreApi`, `FieldRenderer`, `FieldGroup`, `ListEditor`, `Label`, `Vector3Input`, `Vector3Field`, `NumberField`, `ColorInput`, `ColorField`, `StringInput`, `StringField`, `BooleanInput`, `BooleanField`, `SelectInput`, `SelectField`, `MaterialOverridesProvider`, `useMaterialOverrides`, `loadJson`, `saveJson`, `loadFiles`, `exportGLB`, `exportGLBData`, `regenerateIds`, `computeParentWorldMatrix`, `decomposeModelToPrefabNodes`, asset viewer components, and `three/tsl` helpers (`float`, `positionLocal`, `sin`, `time`, `uniform`, `vec3`).
+
+`react-three-game/plugins/crashcat`: `CrashcatRuntime`, `CrashcatPhysicsComponent`, `CrashcatRagdollComponent`, `CrashcatRagdoll`, `RagdollBodyPart`, `createRagdollSettings`, `createStaticBoxBody`, `useCrashcat`.
 
 Types: `Prefab`, `GameObject`, `ComponentData`, `PrefabNode`, `PrefabEditorRef`, `PrefabEditorProps`, `PrefabRootProps`, `Scene`, `Component`, `ComponentViewProps`, `FieldDefinition`, `FieldType`, `NodeApi`, `LiveRef`, `AssetRuntime`, `PrefabStoreState`, `PrefabStoreApi`, `GameEventMap`, `ClickEventPayload`, `ContactEventPayload`, `LoadedModels`, `LoadedTextures`, `LoadedSounds`.
 

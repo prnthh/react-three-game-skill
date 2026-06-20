@@ -5,7 +5,7 @@ Use the CrashCat plugin for rigid bodies, sensors, collision events, and charact
 ## Import path
 
 ```tsx
-import { registerComponent } from 'react-three-game';
+import { PrefabEditor, registerComponent } from 'react-three-game/editor';
 import {
   CrashcatPhysicsComponent,
   CrashcatRuntime,
@@ -78,7 +78,7 @@ Composed R3F controller:
 import { useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import { Group } from 'three';
-import { PrefabEditorMode, useScene } from 'react-three-game';
+import { PrefabEditorMode, useScene } from 'react-three-game/editor';
 import { useCrashcat } from 'react-three-game/plugins/crashcat';
 
 function FirstPersonRig() {
@@ -99,7 +99,7 @@ Prefab-node component:
 
 ```tsx
 import { useFrame } from '@react-three/fiber';
-import { PrefabEditorMode, useScene } from 'react-three-game';
+import { PrefabEditorMode, useScene } from 'react-three-game/editor';
 import { useCrashcat } from 'react-three-game/plugins/crashcat';
 
 function PlayerController({ playerId = 'player' }: { playerId?: string }) {
