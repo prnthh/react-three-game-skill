@@ -60,7 +60,7 @@ Add `CrashcatPhysics` to the same node as the rendered geometry or model.
 Common properties:
 
 - `type`: `fixed`, `dynamic`, `kinematicPosition`, or `kinematicVelocity`.
-- `colliders`: `cuboid`, `ball`, `capsule`, `hull`, or `trimesh`.
+- `colliders`: `cuboid`, `ball`, `capsule`, `cylinder`, `hull`, or `trimesh`.
 - `sensor`: true for trigger-style bodies.
 - `linearVelocity` / `angularVelocity`: initial motion for dynamic bodies.
 - `collisionEnterEventName`, `collisionExitEventName`, `sensorEnterEventName`, `sensorExitEventName`: event names emitted through `gameEvents`.
