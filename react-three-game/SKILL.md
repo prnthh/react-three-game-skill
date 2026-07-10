@@ -76,7 +76,7 @@ import { GameCanvas, PrefabRoot } from 'react-three-game/viewer';
 </GameCanvas>
 ```
 
-Props: `data`, `editMode`, `selectedId`, `onSelect`, `onClick`, `onEditNodeClick`, `basePath`, `children`. `children` render inside the same scene context, so they can call `useScene()`.
+Props: `data`, `editMode`, `selectedId`, `onSelect`, `onPointerEvent`, `onEditNodeClick`, `basePath`, `children`. `children` render inside the same scene context, so they can call `useScene()`.
 
 ### PrefabEditor — authoring UI
 
@@ -92,7 +92,7 @@ import { PrefabEditor, PrefabEditorMode } from 'react-three-game/editor';
 </PrefabEditor>
 ```
 
-Common props: `initialPrefab`, `mode`, `onChange`, `onClick`, `basePath`, `showUI`, `enableWindowDrop`, `canvasProps`, `uiPlugins`, `children`.
+Common props: `initialPrefab`, `mode`, `onChange`, `onPointerEvent`, `basePath`, `showUI`, `enableWindowDrop`, `canvasProps`, `uiPlugins`, `children`.
 
 ## The Scene API — one surface for everything
 
@@ -193,15 +193,15 @@ Guidance:
 | `useEditorRef()` | The full `PrefabEditorRef` if mounted under `<PrefabEditor>` |
 | `useFrame`, `useThree` | Native R3F |
 
-### Authored node clicks
+### Authored node pointer events
 
-For performance, authored nodes only attach runtime click handlers when their primary `Geometry`, `BufferGeometry`, `Model`, or `Sprite` component has `emitClickEvent: true`. Use `onClick` on either `PrefabRoot` or `PrefabEditor` to handle those opted-in node clicks:
+For performance, authored nodes only attach runtime pointer handlers when their primary `Geometry`, `BufferGeometry`, `Model`, or `Sprite` component has `emitClickEvent: true`. Use `onPointerEvent` on either `PrefabRoot` or `PrefabEditor` to handle those opted-in node events:
 
 ```tsx
 <PrefabRoot
   data={prefab}
-  onClick={(event, node) => {
-    if (node.id !== 'floor') return;
+  onPointerEvent={(eventType, event, node) => {
+    if (eventType !== 'click' || node.id !== 'floor') return;
     movePlayerTo(event.point);
   }}
 />
@@ -211,14 +211,14 @@ For performance, authored nodes only attach runtime click handlers when their pr
 <PrefabEditor
   initialPrefab={prefab}
   mode={PrefabEditorMode.Play}
-  onClick={(event, node) => {
-    if (node.id !== 'floor') return;
+  onPointerEvent={(eventType, event, node) => {
+    if (eventType !== 'click' || node.id !== 'floor') return;
     movePlayerTo(event.point);
   }}
 />
 ```
 
-Use this for "click the authored floor/crate/target" behavior. It routes through the prefab renderer, gives you the hit `node` and R3F `event.point`, and avoids adding parallel invisible R3F hit planes. `PrefabRoot` forwards opted-in node clicks whenever it is not in edit mode. `PrefabEditor` forwards the same opted-in node clicks in `PrefabEditorMode.Play`; in edit mode, clicks remain editor selection/gizmo input. When an opted-in component also has `clickEventName`, the click publishes both the default `click` event and the named event.
+Use this for "click/press/drag/wheel the authored floor/crate/target" behavior. It routes through the prefab renderer, gives you the hit `node`, R3F `event.point`, and an event type such as `click`, `pointerdown`, `pointermove`, `pointerup`, `contextmenu`, `doubleclick`, or `wheel`, and avoids adding parallel invisible R3F hit planes. `PrefabRoot` forwards opted-in node pointer events whenever it is not in edit mode. `PrefabEditor` forwards the same opted-in node pointer events in `PrefabEditorMode.Play`; in edit mode, pointer input remains editor selection/gizmo input. Each event publishes its default event type through `gameEvents`; when an opted-in component also has `clickEventName`, the click additionally publishes that named event.
 
 ## Built-in components
 
@@ -357,16 +357,16 @@ handle?.setSpeed(2);
 `gameEvents` is the in-app event bus. Components and runtime systems publish and subscribe through it.
 
 ```tsx
-import { gameEvents, useGameEvent, useClickEvent } from 'react-three-game/editor';
+import { gameEvents, useGameEvent } from 'react-three-game/editor';
 
-useClickEvent('cannon:fire', (payload) => {
+useGameEvent('cannon:fire', (payload) => {
   console.log('fire', payload.sourceEntityId);
 }, []);
 
 const stop = gameEvents.on('target:hit', (payload) => { /* ... */ });
 ```
 
-`Geometry`, `BufferGeometry`, and `Model` accept `emitClickEvent: true` + `clickEventName: "..."` to publish click events with a standard `ClickEventPayload`.
+`Geometry`, `BufferGeometry`, `Model`, and `Sprite` accept `emitClickEvent: true` to publish node pointer events with a standard `NodePointerEventPayload`. `clickEventName: "..."` adds a named event for clicks.
 
 ## Sound
 
@@ -447,13 +447,13 @@ const unsub = store.subscribe(s => s.nodesById['player'], () => { /* ... */ });
 
 ## Useful exports
 
-`react-three-game/viewer`: `GameCanvas`, `PrefabRoot`, `PrefabEditorMode`, `registerComponent`, `gameEvents`, `useGameEvent`, `useClickEvent`, `useScene`, `useNode`, `useNodeObject`, `useNodeHandle`, `useAssetRuntime`, `loadModel`, `loadSound`, `loadTexture`, `findComponent`, `findComponentEntry`, `hasComponent`, `createModelNode`, `createImageNode`, `denormalizePrefab`, `ground`, `soundManager`.
+`react-three-game/viewer`: `GameCanvas`, `PrefabRoot`, `PrefabEditorMode`, `registerComponent`, `gameEvents`, `useGameEvent`, `useScene`, `useNode`, `useNodeObject`, `useNodeHandle`, `useAssetRuntime`, `loadModel`, `loadSound`, `loadTexture`, `findComponent`, `findComponentEntry`, `hasComponent`, `createModelNode`, `createImageNode`, `denormalizePrefab`, `ground`, `soundManager`.
 
 `react-three-game/editor`: everything from `/viewer`, plus `PrefabEditor`, `registerBuiltinComponents`, `useEditorRef`, `useEditorContext`, `usePrefabStore`, `usePrefabStoreApi`, `FieldRenderer`, `FieldGroup`, `ListEditor`, `Label`, `Vector3Input`, `Vector3Field`, `NumberField`, `ColorInput`, `ColorField`, `StringInput`, `StringField`, `BooleanInput`, `BooleanField`, `SelectInput`, `SelectField`, `MaterialOverridesProvider`, `useMaterialOverrides`, `loadJson`, `saveJson`, `loadFiles`, `exportGLB`, `exportGLBData`, `regenerateIds`, `computeParentWorldMatrix`, `decomposeModelToPrefabNodes`, asset viewer components, and `three/tsl` helpers (`float`, `positionLocal`, `sin`, `time`, `uniform`, `vec3`).
 
 `react-three-game/plugins/crashcat`: `CrashcatRuntime`, `CrashcatPhysicsComponent`, `CrashcatRagdollComponent`, `CrashcatRagdoll`, `RagdollBodyPart`, `createRagdollSettings`, `createStaticBoxBody`, `useCrashcat`.
 
-Types: `Prefab`, `GameObject`, `ComponentData`, `PrefabNode`, `PrefabEditorRef`, `PrefabEditorProps`, `PrefabRootProps`, `Scene`, `Component`, `ComponentViewProps`, `FieldDefinition`, `FieldType`, `NodeApi`, `LiveRef`, `AssetRuntime`, `PrefabStoreState`, `PrefabStoreApi`, `GameEventMap`, `ClickEventPayload`, `ContactEventPayload`, `LoadedModels`, `LoadedTextures`, `LoadedSounds`.
+Types: `Prefab`, `GameObject`, `ComponentData`, `PrefabNode`, `PrefabEditorRef`, `PrefabEditorProps`, `PrefabRootProps`, `Scene`, `Component`, `ComponentViewProps`, `FieldDefinition`, `FieldType`, `NodeApi`, `LiveRef`, `AssetRuntime`, `PrefabStoreState`, `PrefabStoreApi`, `GameEventMap`, `NodePointerEventPayload`, `ContactEventPayload`, `LoadedModels`, `LoadedTextures`, `LoadedSounds`.
 
 ## Style
 
