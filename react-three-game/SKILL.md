@@ -92,7 +92,7 @@ import { PrefabEditor, PrefabEditorMode } from 'react-three-game/editor';
 </PrefabEditor>
 ```
 
-Common props: `initialPrefab`, `mode`, `onChange`, `basePath`, `showUI`, `enableWindowDrop`, `canvasProps`, `uiPlugins`, `children`.
+Common props: `initialPrefab`, `mode`, `onChange`, `onClick`, `basePath`, `showUI`, `enableWindowDrop`, `canvasProps`, `uiPlugins`, `children`.
 
 ## The Scene API — one surface for everything
 
@@ -180,6 +180,89 @@ Guidance:
 - Reach for `getObject()` for raw Three.js mutation that lives only at runtime (controllers, particle FX, debug overlays) — much cheaper than roundtripping through JSON every frame.
 - Reach for `getHandle(id, kind)` to read another component's runtime-owned state.
 - `replace()` and `editorRef.load()` swap the whole prefab; `replace()` skips history, `load({ resetHistory: true })` clears history.
+
+### Hook reference
+
+| Hook | Returns |
+|---|---|
+| `useScene()` | The full `Scene` (use for cross-node work, mutations, asset injection) |
+| `useNode()` | `{ nodeId, editMode, isSelected, getObject<T>(), getHandle<T>(kind) }` inside a component `View` |
+| `useNodeObject<T>()` | `LiveRef<T>` for the current node's `Object3D` (read as `ref.current`) |
+| `useNodeHandle<T>(kind)` | `LiveRef<T>` for a runtime handle on the current node |
+| `useAssetRuntime()` | `{ registerHandle, getHandle, getObject, getModel, getTexture, getSound, getAssetRevision }` |
+| `useEditorRef()` | The full `PrefabEditorRef` if mounted under `<PrefabEditor>` |
+| `useFrame`, `useThree` | Native R3F |
+
+### Authored node clicks
+
+For performance, authored nodes only attach runtime click handlers when their primary `Geometry`, `BufferGeometry`, `Model`, or `Sprite` component has `emitClickEvent: true`. Use `onClick` on either `PrefabRoot` or `PrefabEditor` to handle those opted-in node clicks:
+
+```tsx
+<PrefabRoot
+  data={prefab}
+  onClick={(event, node) => {
+    if (node.id !== 'floor') return;
+    movePlayerTo(event.point);
+  }}
+/>
+```
+
+```tsx
+<PrefabEditor
+  initialPrefab={prefab}
+  mode={PrefabEditorMode.Play}
+  onClick={(event, node) => {
+    if (node.id !== 'floor') return;
+    movePlayerTo(event.point);
+  }}
+/>
+```
+
+Use this for "click the authored floor/crate/target" behavior. It routes through the prefab renderer, gives you the hit `node` and R3F `event.point`, and avoids adding parallel invisible R3F hit planes. `PrefabRoot` forwards opted-in node clicks whenever it is not in edit mode. `PrefabEditor` forwards the same opted-in node clicks in `PrefabEditorMode.Play`; in edit mode, clicks remain editor selection/gizmo input. When an opted-in component also has `clickEventName`, the click publishes both the default `click` event and the named event.
+
+## Built-in components
+
+`Transform`, `Data`, `Geometry`, `BufferGeometry`, `Material`, `Model`, `AmbientLight`, `PointLight`, `SpotLight`, `DirectionalLight`, `Environment`, `Camera`, `Text`, `Sound`.
+
+`Data` merges `properties.data` into the mounted `Object3D.userData` (reserved keys like `prefabNodeId` and `prefabNodeName` are protected). Use it for small bits of authored metadata; prefer first-class custom components for systems with their own behavior.
+
+### Environment scenes
+
+Use an authored `Environment` component node for image-based lighting, and put visible sky/spheremap/backdrop geometry under that node when the scene needs a background. Do not substitute an `AmbientLight` for the environment; ambient light can lift dark materials, but it does not provide the same authored environment/background pattern.
+
+```json
+{
+  "id": "environment",
+  "name": "environment",
+  "components": {
+    "transform": { "type": "Transform", "properties": {} },
+    "environment": {
+      "type": "Environment",
+      "properties": { "intensity": 1 }
+    }
+  },
+  "children": [
+    {
+      "id": "spheremap",
+      "components": {
+        "transform": { "type": "Transform", "properties": {} },
+        "geometry": {
+          "type": "Geometry",
+          "properties": { "geometryType": "sphere", "args": [1, 32, 16] }
+        },
+        "material": {
+          "type": "Material",
+          "properties": {
+            "materialType": "basic",
+            "side": "BackSide",
+            "texture": "/textures/water1.png"
+          }
+        }
+      }
+    }
+  ]
+}
+```
 
 ## Custom components
 
@@ -269,61 +352,47 @@ const handle = scene.getHandle<{ setSpeed(n: number): void }>('spinner-1', 'spin
 handle?.setSpeed(2);
 ```
 
-### Hook reference (inside a `View`)
+## Events
 
-| Hook | Returns |
-|---|---|
-| `useNode()` | `{ nodeId, editMode, isSelected, getObject<T>(), getHandle<T>(kind) }` |
-| `useNodeObject<T>()` | `LiveRef<T>` for the current node's `Object3D` (read as `ref.current`) |
-| `useNodeHandle<T>(kind)` | `LiveRef<T>` for a runtime handle on the current node |
-| `useScene()` | The full `Scene` (use for cross-node work, mutations, asset injection) |
-| `useAssetRuntime()` | `{ registerHandle, getHandle, getObject, getModel, getTexture, getSound, getAssetRevision }` |
-| `useEditorRef()` | The full `PrefabEditorRef` if mounted under `<PrefabEditor>` |
-| `useFrame`, `useThree` | Native R3F |
+`gameEvents` is the in-app event bus. Components and runtime systems publish and subscribe through it.
 
-## Built-in components
+```tsx
+import { gameEvents, useGameEvent, useClickEvent } from 'react-three-game/editor';
 
-`Transform`, `Data`, `Geometry`, `BufferGeometry`, `Material`, `Model`, `AmbientLight`, `PointLight`, `SpotLight`, `DirectionalLight`, `Environment`, `Camera`, `Text`, `Sound`.
+useClickEvent('cannon:fire', (payload) => {
+  console.log('fire', payload.sourceEntityId);
+}, []);
 
-`Data` merges `properties.data` into the mounted `Object3D.userData` (reserved keys like `prefabNodeId` and `prefabNodeName` are protected). Use it for small bits of authored metadata; prefer first-class custom components for systems with their own behavior.
+const stop = gameEvents.on('target:hit', (payload) => { /* ... */ });
+```
 
-### Environment scenes
+`Geometry`, `BufferGeometry`, and `Model` accept `emitClickEvent: true` + `clickEventName: "..."` to publish click events with a standard `ClickEventPayload`.
 
-Use an authored `Environment` component node for image-based lighting, and put visible sky/spheremap/backdrop geometry under that node when the scene needs a background. Do not substitute an `AmbientLight` for the environment; ambient light can lift dark materials, but it does not provide the same authored environment/background pattern.
+## Sound
 
 ```json
 {
-  "id": "environment",
-  "name": "environment",
+  "id": "machine-hum",
   "components": {
-    "transform": { "type": "Transform", "properties": {} },
-    "environment": {
-      "type": "Environment",
-      "properties": { "intensity": 1 }
-    }
-  },
-  "children": [
-    {
-      "id": "spheremap",
-      "components": {
-        "transform": { "type": "Transform", "properties": {} },
-        "geometry": {
-          "type": "Geometry",
-          "properties": { "geometryType": "sphere", "args": [1, 32, 16] }
-        },
-        "material": {
-          "type": "Material",
-          "properties": {
-            "materialType": "basic",
-            "side": "BackSide",
-            "texture": "/textures/water1.png"
-          }
-        }
+    "sound": {
+      "type": "Sound",
+      "properties": {
+        "clips": ["/sound/machine-hum.mp3"],
+        "autoplay": true,
+        "loop": true,
+        "positional": true,
+        "refDistance": 2,
+        "maxDistance": 20,
+        "volume": 0.35
       }
     }
-  ]
+  }
 }
 ```
+
+Properties: `clips`, `eventName`, `autoplay`, `loop`, `positional`, `clipMode` (`single` | `random` | `sequence`), `pitch`, `volume`, `randomizePitch`, `randomizeVolume`, `refDistance`, `maxDistance`, `rolloffFactor`, `distanceModel`.
+
+When `eventName` is set, the component subscribes to `gameEvents[eventName]` and plays one shot. Routing fields on the payload (`nodeId`, `sourceEntityId`, `sourceNodeId`, `targetEntityId`, `targetNodeId`, `instanceEntityId`) act as a filter: include the Sound component's own node id to target it directly, or omit all routing fields to broadcast to every listener.
 
 ## Optional plugins
 
@@ -355,48 +424,6 @@ Prefab JSON should use:
 ```
 
 For current physics authoring details, follow `rules/ADVANCED_PHYSICS.md`.
-
-## Sound
-
-```json
-{
-  "id": "machine-hum",
-  "components": {
-    "sound": {
-      "type": "Sound",
-      "properties": {
-        "clips": ["/sound/machine-hum.mp3"],
-        "autoplay": true,
-        "loop": true,
-        "positional": true,
-        "refDistance": 2,
-        "maxDistance": 20,
-        "volume": 0.35
-      }
-    }
-  }
-}
-```
-
-Properties: `clips`, `eventName`, `autoplay`, `loop`, `positional`, `clipMode` (`single` | `random` | `sequence`), `pitch`, `volume`, `randomizePitch`, `randomizeVolume`, `refDistance`, `maxDistance`, `rolloffFactor`, `distanceModel`.
-
-When `eventName` is set, the component subscribes to `gameEvents[eventName]` and plays one shot. Routing fields on the payload (`nodeId`, `sourceEntityId`, `sourceNodeId`, `targetEntityId`, `targetNodeId`, `instanceEntityId`) act as a filter: include the Sound component's own node id to target it directly, or omit all routing fields to broadcast to every listener.
-
-## Events
-
-`gameEvents` is the in-app event bus. Components and runtime systems publish and subscribe through it.
-
-```tsx
-import { gameEvents, useGameEvent, useClickEvent } from 'react-three-game/editor';
-
-useClickEvent('cannon:fire', (payload) => {
-  console.log('fire', payload.sourceEntityId);
-}, []);
-
-const stop = gameEvents.on('target:hit', (payload) => { /* ... */ });
-```
-
-`Geometry`, `BufferGeometry`, and `Model` accept `emitClickEvent: true` + `clickEventName: "..."` to publish click events with a standard `ClickEventPayload`.
 
 ## Direct store access
 
