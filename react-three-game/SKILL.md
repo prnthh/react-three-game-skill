@@ -167,7 +167,7 @@ export function Authoring() {
 }
 ```
 
-`PrefabRoot.data` and `PrefabEditor.prefab` are document inputs. A new object value loads the new document. Editor mutations update the current document and `ref.save()` returns it. `mode` defaults to `PrefabEditorMode.Edit` and responds to new prop values.
+`PrefabRoot.data` and `PrefabEditor.prefab` are document inputs. A new object value loads the new document. Editor mutations update the current document and `ref.save()` returns it. `PrefabEditor.mode` defaults to `PrefabEditorMode.Edit` and responds to new prop values.
 
 ## Runtime scopes
 
