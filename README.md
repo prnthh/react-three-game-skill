@@ -1,7 +1,9 @@
-Agent skill for [react-three-game](https://github.com/prnthh/react-three-game)
+# React Three Game skill
 
-Gives your agent the ability to make prefabs, use the prefab editor, and build runtime integrations around authored node trees.
+Agent guidance for building with [react-three-game](https://github.com/prnthh/react-three-game).
 
-```
+The skill covers prefab JSON, R3F component composition, scene and prefab scopes, custom component registration, the optional editor entrypoint, Crashcat physics, lighting, and performance patterns.
+
+```bash
 npx skills add https://github.com/prnthh/react-three-game-skill
 ```

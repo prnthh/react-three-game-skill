@@ -1,75 +1,84 @@
-# Lighting & Shadows
+# Lighting and shadows
 
-The built-in light components cover most authored lighting setups.
+Authored lights serialize in prefab JSON and expose their properties in the editor. Edit mode renders light helpers and selected shadow-camera volumes.
 
-## Built-in light shadow controls
+## Light table
 
-`DirectionalLight`, `SpotLight`, and `PointLight` expose shadow settings through component properties:
+| Component | Main properties |
+|---|---|
+| `AmbientLight` | `color`, `intensity` |
+| `DirectionalLight` | `color`, `intensity`, `targetOffset`, shadow camera bounds |
+| `SpotLight` | `color`, `intensity`, `distance`, `angle`, `penumbra`, `targetOffset`, `map` |
+| `PointLight` | `color`, `intensity`, `distance`, `decay` |
+| `Environment` | `intensity`, `resolution` |
 
-- `castShadow`
-- `shadowMapSize`
-- `shadowBias`
-- `shadowNormalBias`
-- `shadowAutoUpdate`
-- `shadowCameraNear`
-- `shadowCameraFar`
+Shadow-capable lights share these properties:
 
-Additional light-specific props:
+| Property | Purpose |
+|---|---|
+| `castShadow` | Enables the shadow pass |
+| `shadowMapSize` | Shadow texture resolution |
+| `shadowBias` | Depth offset |
+| `shadowNormalBias` | Normal-space offset |
+| `shadowAutoUpdate` | Continuous or requested refresh |
+| `shadowCameraNear`, `shadowCameraFar` | Shadow depth range |
 
-- `DirectionalLight`: `targetOffset`, frustum bounds
-- `SpotLight`: `targetOffset`, `angle`, `penumbra`, optional texture `map`
-- `PointLight`: `distance`, `decay`
+## Authored sun
 
-## Large scene guidance
-
-For large scenes:
-
-- Enable `castShadow` on the lights that actually shape the scene.
-- Lean on one main shadow-casting light for the primary shadow pass.
-- Set `shadowAutoUpdate: false` once lighting and static geometry have settled.
-- Bump `shadowMapSize` when resolution is the bottleneck.
-- Tune `shadowBias` and `shadowNormalBias` first; reach for a larger map size second.
-
-## One-shot shadow refreshes
-
-The built-in light components already call `shadow.needsUpdate = true` when shadow-related props change. A one-shot refresh just means updating a relevant light property through the `Scene` API.
-
-Typical pattern:
-
-```tsx
-editorRef.current?.update('sun', (node) => ({
-	...node,
-	components: {
-		...node.components,
-		directionalLight: {
-			type: 'DirectionalLight',
-			properties: {
-				...node.components?.directionalLight?.properties,
-				shadowAutoUpdate: false,
-				shadowBias: node.components?.directionalLight?.properties?.shadowBias ?? 0,
-			},
-		},
-	},
-}));
+```json
+{
+  "id": "sun",
+  "components": {
+    "transform": {
+      "type": "Transform",
+      "properties": { "position": [30, 60, 20] }
+    },
+    "light": {
+      "type": "DirectionalLight",
+      "properties": {
+        "color": "#fff2d0",
+        "intensity": 2,
+        "castShadow": true,
+        "shadowMapSize": 1024,
+        "shadowAutoUpdate": false,
+        "shadowCameraNear": 0.5,
+        "shadowCameraFar": 140,
+        "shadowCameraTop": 45,
+        "shadowCameraBottom": -45,
+        "shadowCameraLeft": -45,
+        "shadowCameraRight": 45,
+        "targetOffset": [0, -20, -20]
+      }
+    }
+  }
+}
 ```
 
-If you are driving a custom R3F light ref directly, the manual pattern still works:
+## Requested shadow refresh
 
 ```tsx
-directionalLight.current.shadow.autoUpdate = false;
-directionalLight.current.shadow.needsUpdate = true;
+import type { PrefabApi } from 'react-three-game';
+import type { DirectionalLight } from 'three';
+
+function refreshSunShadow(prefab: PrefabApi) {
+  const light = prefab
+    .getObject('sun')
+    ?.getObjectByProperty('isDirectionalLight', true) as DirectionalLight | undefined;
+
+  if (light?.isDirectionalLight) {
+    light.shadow.autoUpdate = false;
+    light.shadow.needsUpdate = true;
+  }
+}
 ```
 
-## Practical defaults
+## Scene patterns
 
-- `DirectionalLight` for the main outdoor shadow caster.
-- `SpotLight` for focused pools of light and authored targets.
-- `PointLight` works well when shadows stay off; enable shadows on it sparingly.
-- `AmbientLight` lifts dark scenes (it is non-directional and shadow-free by design).
+| Scene | Lighting shape |
+|---|---|
+| Outdoor world | One directional shadow caster, ambient fill, environment |
+| Interior | Focused spot lights, ambient fill, selected shadow casters |
+| Dense repeated props | Shared lighting with mesh `castShadow` / `receiveShadow` flags |
+| Large streaming world | A snapped camera-following directional light with a fitted shadow frustum |
 
-## Shadow authoring notes
-
-- Meshes contribute to shadow casting when `castShadow` is set.
-- Meshes show received shadows when `receiveShadow` is set.
-- `Geometry` primary content in `PrefabRoot` is rendered with both enabled.
-- Imported models are worth a quick visual check, especially when mixing instancing and custom materials.
+Static scenes pair well with `shadowAutoUpdate: false` and a requested refresh after authored light or geometry changes.
