@@ -1,156 +1,73 @@
 # Runtime integrations
 
-Runtime systems live as R3F children of `PrefabRoot` or `PrefabEditor`. They share the outer scene and the current prefab document.
-
-## Scope table
+Runtime systems mount as R3F children of `PrefabRoot` or `PrefabEditor`. Components publish typed capabilities when their nodes mount; systems query the shared scene capability index.
 
 | Need | API |
 |---|---|
 | Edit/Play mode | `useScene().mode` |
-| Current document nodes | `usePrefab()` |
+| Current document and live objects | `usePrefab()` |
 | Current component node | `useNode()` / `useNodeObject()` |
-| Broadcast communication | `gameEvents` / `useGameEvent()` |
-| Direct component API | `prefab.registerHandle()` / `prefab.getHandle()` |
+| Typed mounted capabilities | `useRegisterNodeComponent()` / `useSceneComponents()` |
+| Broadcast notification | `gameEvents` / `useGameEvent()` |
 | Shared loaded assets | `useAssetRuntime()` |
 
-## Component registration pattern
+## Component and system pattern
 
-```tsx
-import { useEffect } from 'react';
-import {
-  useNode,
-  type Component,
-  type ComponentViewProps,
-} from 'react-three-game';
-import {
-  FieldRenderer,
-  type ComponentEditorProps,
-  type FieldDefinition,
-} from 'react-three-game/editor';
-import { proximityRuntime } from './proximityRuntime';
-
-type ProximityProperties = {
-  radius?: number;
-  eventName?: string;
-};
-
-const fields = [
-  { name: 'radius', type: 'number', label: 'Radius', min: 0, step: 0.25 },
-  { name: 'eventName', type: 'string', label: 'Event' },
-] satisfies FieldDefinition<ProximityProperties>[];
-
-function ProximityEditor({ properties, update }: ComponentEditorProps<ProximityProperties>) {
-  return <FieldRenderer fields={fields} values={properties} onChange={update} />;
-}
-
-function ProximityView({ properties, children }: ComponentViewProps<ProximityProperties>) {
-  const { nodeId } = useNode();
-
-  useEffect(() => {
-    proximityRuntime.register(nodeId, {
-      radius: properties.radius ?? 1,
-      eventName: properties.eventName ?? '',
-    });
-    return () => proximityRuntime.unregister(nodeId);
-  }, [nodeId, properties.eventName, properties.radius]);
-
-  return <>{children}</>;
-}
-
-export const Proximity: Component<ProximityProperties> = {
-  name: 'Proximity',
-  Editor: ProximityEditor,
-  View: ProximityView,
-  defaultProperties: { radius: 1, eventName: '' },
-};
-```
-
-Prefab syntax:
-
-```json
-{
-  "id": "door-zone",
-  "components": {
-    "transform": {
-      "type": "Transform",
-      "properties": { "position": [0, 0, -3] }
-    },
-    "proximity": {
-      "type": "Proximity",
-      "properties": { "radius": 2, "eventName": "door:near" }
-    }
-  }
-}
-```
-
-Manager syntax:
-
-```ts
-type ProximityEntry = {
-  id: string;
-  radius: number;
-  eventName: string;
-  active: boolean;
-};
-
-const entries: ProximityEntry[] = [];
-
-export const proximityRuntime = {
-  entries,
-  register(id: string, values: Pick<ProximityEntry, 'radius' | 'eventName'>) {
-    const entry = entries.find(current => current.id === id);
-    if (entry) Object.assign(entry, values);
-    else entries.push({ id, ...values, active: false });
-  },
-  unregister(id: string) {
-    const index = entries.findIndex(entry => entry.id === id);
-    if (index >= 0) entries.splice(index, 1);
-  },
-};
-```
-
-## Shared manager pattern
+Keep inspector configuration in component properties and runtime state in the published capability. Memoize the capability when its identity should remain stable.
 
 ```tsx
 import { useFrame } from '@react-three/fiber';
+import { useMemo } from 'react';
+import type { Object3D } from 'three';
 import {
-  gameEvents,
+  registerComponent,
+  type Component,
+  type ComponentViewProps,
+} from 'react-three-game/core';
+import {
   PrefabEditorMode,
-  usePrefab,
+  createNodeComponentType,
+  useNodeObject,
+  useRegisterNodeComponent,
   useScene,
-} from 'react-three-game';
-import { Vector3 } from 'three';
-import { proximityRuntime } from './proximityRuntime';
+  useSceneComponents,
+  type LiveRef,
+} from 'react-three-game/viewer';
 
-const playerPosition = new Vector3();
-const zonePosition = new Vector3();
+type SpinnerProperties = { speed?: number };
+type Spinner = { speed: number; object: LiveRef<Object3D> };
 
-export function ProximitySystem({ playerId = 'player' }: { playerId?: string }) {
+export const SPINNER = createNodeComponentType<Spinner>('Spinner');
+
+function SpinnerView({ properties, children }: ComponentViewProps<SpinnerProperties>) {
+  const object = useNodeObject();
+  const spinner = useMemo(() => ({
+    object,
+    speed: properties.speed ?? 1,
+  }), [object, properties.speed]);
+
+  useRegisterNodeComponent(SPINNER, spinner);
+  return <>{children}</>;
+}
+
+export const SpinnerComponent: Component<SpinnerProperties> = {
+  name: 'Spinner',
+  View: SpinnerView,
+  properties: {
+    speed: { default: 1, step: 0.1 },
+  },
+};
+
+export function SpinnerSystem() {
   const scene = useScene();
-  const prefab = usePrefab();
+  const spinners = useSceneComponents(SPINNER);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (scene.mode !== PrefabEditorMode.Play) return;
-    const player = prefab.getObject(playerId);
-    if (!player) return;
-    player.getWorldPosition(playerPosition);
-
-    const zones = proximityRuntime.entries;
-    for (let index = 0; index < zones.length; index += 1) {
-      const zone = zones[index];
-      const object = prefab.getObject(zone.id);
-      if (!object) continue;
-      object.getWorldPosition(zonePosition);
-
-      const active = playerPosition.distanceToSquared(zonePosition) <= zone.radius * zone.radius;
-      if (active === zone.active) continue;
-      zone.active = active;
-      if (active && zone.eventName) {
-        gameEvents.emit(zone.eventName, {
-          sourceNodeId: playerId,
-          targetNodeId: zone.id,
-        });
-      }
+    for (let index = 0; index < spinners.length; index += 1) {
+      const spinner = spinners[index].value;
+      const object = spinner.object.current;
+      if (object) object.rotation.y += spinner.speed * delta;
     }
   });
 
@@ -158,24 +75,26 @@ export function ProximitySystem({ playerId = 'player' }: { playerId?: string }) 
 }
 ```
 
-Mounting syntax:
-
 ```tsx
-registerComponent(Proximity);
+import { PrefabEditor } from 'react-three-game/editor';
+
+registerComponent(SpinnerComponent);
 
 <PrefabEditor prefab={prefab}>
-  <ProximitySystem playerId="player" />
+  <SpinnerSystem />
 </PrefabEditor>
 ```
 
-## Runtime data placement
+Use the scene capability index as the source for mount, replacement, and unmount notification. Register component definitions once from JavaScript setup and let them persist across scene changes.
+
+## Data placement
 
 | Data | Location |
 |---|---|
-| Inspector properties and relationships | Component `properties` |
-| Serializable node changes | `PrefabApi` mutations |
-| Animation and simulation state | Refs, live `Object3D`s, runtime managers |
-| Direct node capability | Registered handle |
+| Inspector configuration and relationships | Component `properties` |
+| Serializable scene changes | `PrefabApi` mutations |
+| Per-node runtime API or state | Typed component capability |
+| Animation and simulation state | Refs and live `Object3D`s |
 | Scene-wide notification | Named game event |
 
-Stable arrays, indexed loops, preallocated math objects, and one manager callback form the preferred shape for large entity populations.
+For large populations, keep one system frame callback, use indexed loops, preallocate scratch math objects, and reuse values throughout the frame loop.

@@ -57,7 +57,7 @@ Shadow-capable lights share these properties:
 ## Requested shadow refresh
 
 ```tsx
-import type { PrefabApi } from 'react-three-game';
+import type { PrefabApi } from 'react-three-game/viewer';
 import type { DirectionalLight } from 'three';
 
 function refreshSunShadow(prefab: PrefabApi) {

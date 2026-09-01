@@ -5,7 +5,7 @@ Crashcat is an optional plugin entrypoint for authored rigid bodies, sensors, co
 ## Setup
 
 ```tsx
-import { registerComponent } from 'react-three-game';
+import { registerComponent } from 'react-three-game/core';
 import { PrefabEditor } from 'react-three-game/editor';
 import {
   CrashcatPhysicsComponent,
@@ -31,7 +31,6 @@ One `CrashcatRuntime` owns the physics world for the shared scene.
   "id": "physics-scene",
   "materials": {
     "crate": {
-      "materialType": "standard",
       "color": "#c97316",
       "roughness": 0.8
     }
@@ -48,11 +47,11 @@ One `CrashcatRuntime` owns the physics world for the shared scene.
           },
           "mesh": {
             "type": "Mesh",
-            "properties": { "castShadow": true, "receiveShadow": true }
+            "properties": {}
           },
           "geometry": {
             "type": "Geometry",
-            "properties": { "geometryType": "box", "args": [1, 1, 1] }
+            "properties": {}
           },
           "material": {
             "type": "Material",
@@ -62,7 +61,6 @@ One `CrashcatRuntime` owns the physics world for the shared scene.
             "type": "CrashcatPhysics",
             "properties": {
               "type": "dynamic",
-              "colliders": "cuboid",
               "friction": 0.6,
               "restitution": 0.1
             }
@@ -94,7 +92,7 @@ import {
   PrefabEditorMode,
   usePrefab,
   useScene,
-} from 'react-three-game';
+} from 'react-three-game/viewer';
 import { useCrashcat } from 'react-three-game/plugins/crashcat';
 
 function PlayerController({ playerId = 'player' }: { playerId?: string }) {

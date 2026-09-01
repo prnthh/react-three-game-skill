@@ -2,6 +2,8 @@
 
 Prefab JSON describes structure. Live Three.js objects and shared managers handle frame-frequency work.
 
+Eligible `Mesh` components join the scene instancing service by default; set `instanced: false` to keep a mesh on its native render path. Repeat positions on a non-animated `Model` use the same service. Ordinary model nodes keep their native render path.
+
 ## Work placement
 
 | Work | Preferred surface |
@@ -10,7 +12,7 @@ Prefab JSON describes structure. Live Three.js objects and shared managers handl
 | Animation and controls | `prefab.getObject()` or `useNodeObject()` |
 | Many passive entities | One manager with one `useFrame()` callback |
 | Shared asset | Asset runtime cache |
-| Repeated model | `Model.properties.instanced` and repeat axes |
+| Repeated mesh | Implicit `Mesh` instancing or repeat axes on one non-animated `Model` |
 | World residency | Chunk manager with stable ids and bounded admission |
 
 ## Frame-loop shape
@@ -35,7 +37,7 @@ useFrame((_, delta) => {
 
 Stable arrays, indexed loops, reused vectors, typed-array mutation, pooled effects, and batched matrix uploads keep the hot path predictable.
 
-## Instanced model syntax
+## Repeated model syntax
 
 ```json
 {
@@ -45,7 +47,6 @@ Stable arrays, indexed loops, reused vectors, typed-array mutation, pooled effec
       "type": "Model",
       "properties": {
         "filename": "/models/tree.glb",
-        "instanced": true,
         "repeat": true,
         "repeatAxes": [
           { "axis": "x", "count": 100, "offset": 4 },
