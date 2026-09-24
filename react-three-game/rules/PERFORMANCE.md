@@ -1,82 +1,16 @@
 # Performance
 
-Prefab JSON describes structure. Live Three.js objects and shared managers handle frame-frequency work.
+Measure before adding a new optimization system. Compare the same scene, camera path, resolution, and lighting in a production build.
 
-Eligible `Mesh` components join the scene instancing service by default; set `instanced: false` to keep a mesh on its native render path. Repeat positions on a non-animated `Model` use the same service. Ordinary model nodes keep their native render path.
+- Keep animation and physics on live objects, not document mutations.
+- Reuse scratch vectors and avoid React state updates every frame.
+- Eligible leaf meshes instance automatically; `instanced: false` opts out.
+- Keep ordinary animated/interactive objects on their native path when batching does not fit.
+- Share assets and immutable materials through the scene runtime.
+- Stream URL-backed chunks with `PrefabInstance`; keep old terrain active until replacements activate.
+- Use `static` only for immutable chunks. Remount to move or edit them.
+- Start with one shadow caster. Use cached shadows for static scenes and CSM for moving outdoor views.
 
-## Work placement
+`onStatus` reports preparation phases; `onActivate` means the chunk is active. Pending downloads reaching zero does not mean rendering is prepared.
 
-| Work | Preferred surface |
-|---|---|
-| Serializable edit | `prefab.update()`, `setMaterial()`, structural prefab methods |
-| Animation and controls | `prefab.getObject()` or `useNodeObject()` |
-| Many passive entities | One manager with one `useFrame()` callback |
-| Shared asset | Asset runtime cache |
-| Repeated mesh | Implicit `Mesh` instancing or repeat axes on one non-animated `Model` |
-| World residency | Chunk manager with stable ids and bounded admission |
-
-## Frame-loop shape
-
-```tsx
-const position = new Vector3();
-const target = new Vector3();
-
-useFrame((_, delta) => {
-  if (scene.mode !== PrefabEditorMode.Play) return;
-
-  for (let index = 0; index < entries.length; index += 1) {
-    const entry = entries[index];
-    const object = prefab.getObject(entry.id);
-    if (!object) continue;
-    object.getWorldPosition(position);
-    position.lerp(target, Math.min(1, delta * entry.speed));
-    object.position.copy(position);
-  }
-});
-```
-
-Stable arrays, indexed loops, reused vectors, typed-array mutation, pooled effects, and batched matrix uploads keep the hot path predictable.
-
-## Repeated model syntax
-
-```json
-{
-  "id": "tree-line",
-  "components": {
-    "model": {
-      "type": "Model",
-      "properties": {
-        "filename": "/models/tree.glb",
-        "repeat": true,
-        "repeatAxes": [
-          { "axis": "x", "count": 100, "offset": 4 },
-          { "axis": "z", "count": 20, "offset": 4 }
-        ]
-      }
-    }
-  }
-}
-```
-
-## Runtime interaction
-
-| Feature | Efficient shape |
-|---|---|
-| Pointer events | `emitClickEvent` on interactive object components |
-| Ray queries | Event-driven or throttled queries with a spatial broad phase |
-| Instance transforms | One matrix update pass and one `needsUpdate` assignment |
-| Streaming | Desired/resident id diff with hysteresis and bounded batches |
-| Shadows | One fitted primary shadow caster for large outdoor scenes |
-| UI statistics | Sampled state updates at a readable interval |
-
-## Measurement table
-
-| Measure | Context |
-|---|---|
-| Mount and streaming cost | Production build after warm-up |
-| Authored mutation cost | Equal prefab and edit workload |
-| CPU frame time | Equal camera path and entity count |
-| GPU frame time | Equal materials, lights, shadows, DPR, backend |
-| Draw calls and memory | Equal visible result |
-
-Several samples and median values provide a useful optimization comparison.
+Low draw counts do not guarantee fast startup or low CPU cost. Measure startup, chunk transitions, steady frames, and memory after unloading separately. Preparation does not move React mounting or all asset decoding off the main thread.

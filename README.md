@@ -1,9 +1,9 @@
 # React Three Game skill
 
-Agent guidance for building with [react-three-game](https://github.com/prnthh/react-three-game).
+Concise component, prefab, and runtime conventions for agents using React Three Game.
 
-The skill covers prefab JSON, R3F component composition, scene and prefab scopes, custom component registration, the optional editor entrypoint, Crashcat physics, lighting, and performance patterns.
-
-```bash
+```sh
 npx skills add https://github.com/prnthh/react-three-game-skill
 ```
+
+Start with `react-three-game/SKILL.md`; load its focused references only as needed.
