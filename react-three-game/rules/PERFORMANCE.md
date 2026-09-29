@@ -4,7 +4,8 @@ Measure before adding a new optimization system. Compare the same scene, camera 
 
 - Keep animation and physics on live objects, not document mutations.
 - Reuse scratch vectors and avoid React state updates every frame.
-- Eligible leaf meshes instance automatically; `instanced: false` opts out.
+- Compatible leaf meshes with shared geometry/materials instance automatically; `instanced: false` opts out. For repeated boxes, share unit geometry and use transform scale for dimensions.
+- `api.analyzeScene()` and batch advisories flag common authoring problems. They do not measure runtime draw calls or FPS. Named groups organize content but do not themselves reduce draw calls.
 - Keep ordinary animated/interactive objects on their native path when batching does not fit.
 - Share assets and immutable materials through the scene runtime.
 - Stream URL-backed chunks with `PrefabInstance`; keep old terrain active until replacements activate.

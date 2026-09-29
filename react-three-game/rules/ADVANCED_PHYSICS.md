@@ -1,5 +1,7 @@
 # Crashcat physics
 
+Crashcat is an optional adapter that advances its own physics world from R3F frames. Its stepping policy is not a core game-loop or fixed world-tick contract.
+
 Register `CrashcatPhysicsComponent` from `react-three-game/plugins/crashcat`. Mount one `CrashcatRuntime` inside `PrefabRoot` or `PrefabEditor`. Inspector controls are generated from the component schemas.
 
 Add physics alongside a node's visual components:

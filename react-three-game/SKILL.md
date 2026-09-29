@@ -1,13 +1,36 @@
 ---
 name: react-three-game
-description: Build WebGPU games and editors with React Three Game prefab JSON and React Three Fiber components.
+description: Build and edit React Three Game scenes using WebGPU rendering, React Three Fiber composition, prefab components and the editor API for agents.
 ---
 
 # React Three Game
 
 Use the existing component schemas and demos as the API reference. Prefer composing built-ins to creating new abstractions.
 
-## Standard workflow
+React Three Game owns rendering and scene authoring. The host application owns gameplay state, world ticks, simulation scheduling, input, networking and rules. `SceneRuntime` supplies resource/context providers, not a game loop. Ordinary R3F JSX can compose alongside prefab content; not every React component needs a serialized definition.
+
+## Start in a running editor
+
+For live scene authoring, start in the editor frame's JavaScript context:
+
+```js
+window.reactThreeGame.help();
+window.reactThreeGame.listEditors();
+const api = window.reactThreeGame.editors[chosenId]; // Choose an ID from that list.
+api.help();
+api.describeComponents({ names: ['Geometry', 'Mesh', 'Material', 'Model'] });
+api.analyzeScene();
+```
+
+Prefer targeted `findNodes()` / `getNodes()` reads and small batches over rewriting the whole document. Read instance keys before patching components. Pass the read's `revision` as `expectedRevision` to `validateBatch()` and `applyBatch()`; a mismatch means reread and replan. Validation is read-only; applying is one undo step in Edit mode. Both return authoring advisories, which are document heuristics, not measured FPS.
+
+Use `focusNode()` and `captureView()` to check the result. `exportScene()` returns data without saving; `saveScene()` needs a host adapter (`getSceneInfo().canSave`). The registry may be absent before mount or when tools are disabled. This is an ordinary page API, not an MCP server.
+
+Copy the grouped geometry, texture and model example from [Editor API for agents](https://prnth.com/react-three-game/editor/agents). In this library checkout, the canonical source is `docs/editor-api-for-agents.md`; consult it when the deployed guide lags local changes.
+
+Edit/Play is a mode signal, not a game-session snapshot. Live motion is not serialized or undoable; hosts own pause/reset behavior.
+
+## Compose or extend an application
 
 1. Define a prefab with a root node, stable node IDs, and sparse component properties.
 2. Register custom components before mounting the scene.
@@ -42,6 +65,10 @@ import scene from './scene.json';
   }
 }
 ```
+
+Organize assemblies under named parents with stable IDs. Repeated boxes should share unit geometry `[1,1,1]`, with dimensions in `Transform.scale` and shared `Material.materialId`. Scaling existing nodes also scales children and colliders; preserve their meaning.
+
+Load meshes through `Model.filename` and textures through material `texture` / `normalMapTexture`, using known URLs. Imported models keep their embedded materials. URLs respect `basePath` and browser CORS; batch validation does not verify asynchronous asset loads.
 
 Use local transforms and radians. Defaults come from schemas. Material IDs and node IDs are local to a prefab. `PrefabRef` with a `url` composes another document. Asset paths respect `basePath`.
 
@@ -87,7 +114,8 @@ Custom inspector UI belongs in an editor-only module registered with `registerCo
 | Document and local objects | `usePrefab()` |
 | Shared scene/mode | `useScene()` |
 | Serializable edit | Prefab mutations |
-| Animation or simulation | Refs and live objects |
+| View animation | Refs/live Three objects in R3F `useFrame` |
+| Gameplay simulation | Host-owned state and tick loop |
 | URL-backed chunk | `PrefabInstance` |
 
 `PrefabInstance` prepares before activation. Use a stable `id`, `url`, `onStatus` for errors, and `onActivate` for activation. `active={false}` stages content. Unmount to release it. `GameCanvas` shares the runtime across sibling chunks automatically. Use `static` only for immutable chunks.

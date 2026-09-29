@@ -1,4 +1,4 @@
 interface:
   display_name: "React Three Game"
-  short_description: "Build data-driven games from components and JSON"
-  default_prompt: "Use $react-three-game to build a data-driven game scene from reusable components and JSON."
+  short_description: "Author scenes with the editor API and R3F components"
+  default_prompt: "Use $react-three-game to author a scene through the running editor API or compose reusable React Three Fiber components."

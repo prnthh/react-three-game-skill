@@ -13,7 +13,7 @@ Start with one directional sun and hemisphere/environment fill. Add local lights
 
 Enable `castShadow` on lights and meshes; receivers need `receiveShadow`. Keep shadow-camera bounds close to the area that matters.
 
-For static lighting, set `shadowAutoUpdate: false`. Get `invalidateShadows` from `useInvalidateShadows()` in `react-three-game/viewer` and call it after changing casters/lights or activating/removing chunks. The editor also provides a refresh button.
+For static lighting, set `shadowAutoUpdate: false`. After changing casters/lights or chunks, set the Three light's `shadow.needsUpdate = true`; invalidate the canvas if it renders on demand. Keep automatic updates enabled for moving content.
 
 For moving outdoor views, use `DirectionalLight.shadowCascades: 2` or `3`, with a suitable `shadowDistance`. Cascades update every frame. One cascade means an ordinary shadow map.
 

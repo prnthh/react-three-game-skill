@@ -1,6 +1,8 @@
 # Runtime communication
 
-Use component properties for editable configuration and refs/live objects for simulation. Mount shared systems as children of `PrefabRoot` or `PrefabEditor`.
+Use component properties for editable configuration. Keep gameplay state and simulation scheduling in host systems; project their results onto live objects. Mount host systems as children of `PrefabRoot` or `PrefabEditor` when they need those contexts. R3F `useFrame` supplies render-frame delta, not an authoritative world tick.
+
+`GameEvents` dispatches synchronously; it does not queue simulation work. Component capabilities expose mounted handles, not an ECS scheduler.
 
 For a known node in the same prefab, use `useGameObject(id)`: `.transform` reads the live Three object and `.getComponent(type)` reads its runtime handle. Omit the id for the current node. Both reads return null when unavailable. For notifications, use `useGameEvents().emit(name, payload)` and `useGameEvent(name, handler, deps)`.
 
