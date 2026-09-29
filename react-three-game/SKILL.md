@@ -26,7 +26,7 @@ Prefer targeted `findNodes()` / `getNodes()` reads and small batches over rewrit
 
 Use `focusNode()` and `captureView()` to check the result. `exportScene()` returns data without saving; `saveScene()` needs a host adapter (`getSceneInfo().canSave`). The registry may be absent before mount or when tools are disabled. This is an ordinary page API, not an MCP server.
 
-Copy the grouped geometry, texture and model example from [Editor API for agents](https://prnth.com/react-three-game/editor/agents). In this library checkout, the canonical source is `docs/editor-api-for-agents.md`; consult it when the deployed guide lags local changes.
+Copy the grouped geometry, texture and model example from [Editor API for agents](https://prnth.com/react-three-game/editor-api-for-agents.md). In this library checkout, the canonical source is `docs/public/editor-api-for-agents.md`; consult it when the deployed guide lags local changes.
 
 Edit/Play is a mode signal, not a game-session snapshot. Live motion is not serialized or undoable; hosts own pause/reset behavior.
 
@@ -66,7 +66,7 @@ import scene from './scene.json';
 }
 ```
 
-Organize assemblies under named parents with stable IDs. Repeated boxes should share unit geometry `[1,1,1]`, with dimensions in `Transform.scale` and shared `Material.materialId`. Scaling existing nodes also scales children and colliders; preserve their meaning.
+Organize assemblies under named parents with stable IDs. Repeated boxes should share unit geometry `[1,1,1]`, with dimensions in `Transform.scale` and matching material settings. Built-in materials automatically share GPU resources across different IDs; reuse `Material.materialId` only when edits should be linked. Scaling existing nodes also scales children and colliders; preserve their meaning.
 
 Load meshes through `Model.filename` and textures through material `texture` / `normalMapTexture`, using known URLs. Imported models keep their embedded materials. URLs respect `basePath` and browser CORS; batch validation does not verify asynchronous asset loads.
 
