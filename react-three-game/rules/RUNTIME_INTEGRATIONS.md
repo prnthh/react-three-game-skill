@@ -27,3 +27,5 @@ Capabilities enter and leave the query when nodes mount and unmount. Use this on
 `AnimatedModel` publishes `ANIMATED_MODEL_COMPONENT` for animation controls. Game-specific state transitions belong in gameplay code.
 
 Runtime systems should check `useScene().mode` before simulating in the editor. Node behaviors can check `useNode().editMode`.
+
+After imperative transform edits, call `notifyObjectChanged(object)` from `react-three-game/viewer`; pass `'geometry'` as the second argument after geometry changes. This updates affected colliders, including inherited transforms and compound geometry. Authored transforms and primitive geometry notify automatically; physics simulation writes do not.
