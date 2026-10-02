@@ -355,8 +355,8 @@ Inside the canvas:
 ```tsx
 import { PrefabInstance } from 'react-three-game/viewer';
 
-// Prepare without activating; set active to true when wanted.
-<PrefabInstance id="courtyard" url="/prefabs/courtyard.json" active={false} />
+// Mount to load, compile, and activate automatically.
+<PrefabInstance id="courtyard" url="/prefabs/courtyard.json" />
 // onStatus: preparation status/errors. onActivate: gameplay is active.
 // Unmount to release. Use static only when the chunk will remain immutable.
 ```
