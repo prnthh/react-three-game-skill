@@ -179,8 +179,6 @@ Annotated JSON below uses comments for teaching; omit comments in `.json` files.
 
 ```jsonc
 {
-  // Shared material IDs link edits across nodes using that ID.
-  "materials": { "stone": { "color": "#999999" } },
   "root": {
     "id": "world", // IDs are unique within this prefab.
     "children": [{
@@ -200,7 +198,7 @@ Annotated JSON below uses comments for teaching; omit comments in `.json` files.
           "properties": { "geometryType": "box", "args": [1, 1, 1] }
         },
         // Repeated boxes share unit geometry; set dimensions with scale.
-        "material": { "type": "Material", "properties": { "materialId": "stone" } }
+        "material": { "type": "Material", "properties": { "name": "stone", "color": "#999999" } }
       }
     }]
   }
