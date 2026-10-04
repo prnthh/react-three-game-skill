@@ -190,14 +190,13 @@ Annotated JSON below uses comments for teaching; omit comments in `.json` files.
           "properties": {
             "position": [0, 1, 0], // Local to the parent; Y is up.
             "rotation": [0, 0, 0], // XYZ Euler radians.
-            "scale": [2, 1, 1]     // Also scales children and colliders.
+            "scale": [1, 1, 1]     // Scaling also affects children and colliders.
           }
         },
         "geometry": {
           "type": "Geometry",
-          "properties": { "geometryType": "box", "args": [1, 1, 1] }
+          "properties": { "geometryType": "box", "args": [2, 1, 1] }
         },
-        // Repeated boxes share unit geometry; set dimensions with scale.
         "material": { "type": "Material", "properties": { "name": "stone", "color": "#999999" } }
       }
     }]

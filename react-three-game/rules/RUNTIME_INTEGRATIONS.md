@@ -24,7 +24,7 @@ const actors = useSceneComponents(HEALTH);
 
 Capabilities enter and leave the query when nodes mount and unmount. Use this only when direct node access or events are insufficient.
 
-`AnimatedModel` publishes `ANIMATED_MODEL_COMPONENT` for animation controls. Game-specific state transitions belong in gameplay code.
+`SkinnedMesh` publishes `SKINNED_MESH_COMPONENT` for animation controls. Game-specific state transitions belong in gameplay code.
 
 Runtime systems should check `useScene().mode` before simulating in the editor. Node behaviors can check `useNode().editMode`.
 
