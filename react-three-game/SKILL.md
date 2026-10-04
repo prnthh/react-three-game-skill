@@ -195,7 +195,6 @@ Annotated JSON below uses comments for teaching; omit comments in `.json` files.
             "scale": [2, 1, 1]     // Also scales children and colliders.
           }
         },
-        "mesh": { "type": "Mesh", "properties": {} },
         "geometry": {
           "type": "Geometry",
           "properties": { "geometryType": "box", "args": [1, 1, 1] }
@@ -323,6 +322,7 @@ properties: {
 
 // Omit slot for ordinary behavior. When supplying a render-graph part:
 slot: 'geometry', // Or 'object' / 'material'; each slot is exclusive on its node.
+// Geometry gets an implicit mesh; object views supply their own render object.
 // The View must implement attachment and preserve children where appropriate.
 ```
 
