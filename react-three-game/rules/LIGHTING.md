@@ -17,4 +17,4 @@ For static lighting, set `shadowAutoUpdate: false`. After changing casters/light
 
 For moving outdoor views, use `DirectionalLight.shadowCascades: 2` or `3`, with a suitable `shadowDistance`. Cascades update every frame. One cascade means an ordinary shadow map.
 
-Use one active Fog node with `far > near`. Its location in the hierarchy does not limit its scene-wide effect.
+Use one active Fog node with `far > near`. Fog affects the whole scene.

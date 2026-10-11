@@ -12,7 +12,7 @@ React Three Game is a game creation toolbox for the web. A **prefab** is a JSON 
 | Task or context | Approach |
 | --- | --- |
 | Adjust a visible scene and inspect placement | [Use the editor API](#edit-a-scene) |
-| Change a saved scene, generate content, or review a file diff | [Edit prefab JSON directly](#edit-prefab-json-directly) |
+| Change a saved scene, generate content, or review a file diff | [Edit saved prefab JSON](#edit-saved-prefab-json) |
 | Add reusable behavior, hooks, or a new rendering feature | [Add custom components in source](#custom-components) |
 | Store a small script with the scene | [Use a Runtime component](#scripted-behavior) |
 | Render JSON alongside the app's own canvas content | [Embed PrefabRoot](#render-json-in-the-apps-canvas) |
@@ -21,6 +21,34 @@ React Three Game is a game creation toolbox for the web. A **prefab** is a JSON 
 These approaches can be combined: add a component in source, configure instances
 in JSON, then inspect them in the editor or viewer. Use the existing schemas and
 nearby application code to discover conventions before inventing new ones.
+
+## Start with an inline prefab
+
+Render a small definition before introducing files or loading:
+
+```tsx
+import { GameCanvas, PrefabRoot, type Prefab } from 'react-three-game/viewer';
+
+const level: Prefab = {
+  root: { id: 'world', children: [{ id: 'box', components: {
+    geometry: { type: 'Geometry', properties: { geometryType: 'box' } },
+    material: { type: 'Material', properties: { color: '#ef806a' } },
+  } }] },
+};
+
+export default function App() {
+  return <div style={{ height: '100vh' }}>
+    <GameCanvas camera={{ position: [4, 3, 6] }}>
+      <ambientLight intensity={2} />
+      <PrefabRoot data={level} />
+    </GameCanvas>
+  </div>;
+}
+```
+
+Use `PrefabEditor` to edit the same `level`. Pack and duplicate an assembly for
+reuse inside the scene; save a separate prefab file when sharing across scenes
+or loading by URL. Keep module-level data stable between renders.
 
 ## Edit a scene
 
@@ -46,7 +74,7 @@ scene.components({ names: ['Material'] }); // Supported settings for a type.
 
 Component instance keys belong to the node and can differ from type names.
 
-If `window.scene` is missing, check the frame and wait for the editor to mount. `agentTools={false}` disables exposure; `showUI={false}` only hides panels. A viewer alone has no window API. Only one agent-enabled editor is supported per page; reacquire it after navigation.
+If `window.scene` is missing, check the frame and wait for the editor to mount. `agentTools={false}` disables exposure; `showUI={false}` only hides panels. Only one agent-enabled editor is supported per page; reacquire it after navigation.
 
 ### Make one change and inspect it
 
@@ -69,7 +97,27 @@ await scene.setMode({ mode: 'edit' });
 await scene.reset(); // Restore live objects from current JSON; keep edits/history.
 ```
 
-Changing mode alone does not reset live state.
+`scene.reset()` explicitly restores live objects from the current document.
+
+### Reuse an assembly inline
+
+After choosing the authored node above:
+
+```js
+scene.pack({ id: node.id });
+scene.duplicate({ id: node.id, newId: 'assembly-copy' });
+scene.transform({ id: 'assembly-copy', position: [6, 1, 0] });
+```
+
+Packing marks the original node `packed: true` and keeps its components and
+children in place. Copies use `PrefabRef` with `{prefabId: "original-node-id"}`
+and independent transforms. Edit the original subtree to update copies.
+Expand one copy with `await scene.unpack({id:'assembly-copy'})` for independent
+editing, then pack it to make a new reusable definition.
+
+For reuse across scenes, `scene.exportPrefab({id:'assembly-copy'})` returns a
+portable definition. Save it in `public/prefabs`, then use its served URL in a
+`PrefabRef`. Scene saves include inline definitions automatically.
 
 ### Save the result
 
@@ -81,53 +129,18 @@ if (scene.info().saveMethod === 'save') {
 }
 ```
 
-Exporting alone does not save. Report what changed, what you verified, and where it was saved.
+Write exported JSON to the chosen destination, then report the change and validation.
 
 ### Find a more specific operation
 
 `scene.help()` lists methods. Read the relevant section of [Editor scene for agents](https://prnth.com/react-three-game/editor-scene-for-agents.md) for capture options, component edits, placement, downloads, packing, or atomic batches. In this checkout, use `docs/public/editor-scene-for-agents.md`; deployed docs may lag.
 
-Individual edits use the current revision automatically. Use `expectedRevision` when coordinating against a previous read; `validate()` and `batch()` require it. If a guarded write conflicts, reread and replan. Prefer batches when dependent changes must land together, rather than for every edit.
-
-## Edit prefab JSON directly
-
-Find the file the app actually loads; in this repository, scenes live under `docs/public/prefabs`.
-
-```js
-// In the consuming app: follow this import (or the PrefabInstance URL).
-import level from './level.json';
-
-// Edit level.json directly; no running editor is needed.
-// Preserve node IDs, component keys, and unrelated fields.
-// Check component schemas in source before adding properties.
-// Check JSON syntax, unique IDs, and component registration in the app.
-// Reload the editor/viewer, inspect the result, and review the file diff.
-
-// File edits do not update an already-open editor's in-memory document.
-// Reload before continuing API work so a stale save cannot overwrite the file.
-```
+Individual edits use the current revision automatically. Use `expectedRevision` when coordinating against a previous read; `validate()` and `batch()` require it. If a guarded write conflicts, reread and replan. Use batches to commit dependent edits together.
 
 ## Render JSON in the app's canvas
 
-Render JSON beside the user's own JSX and gameplay systems. Import custom registrations before mounting; keep `data` stable between renders.
-
-### With GameCanvas
-
-```tsx
-import './components'; // Application component registrations.
-import { GameCanvas, PrefabRoot } from 'react-three-game/viewer';
-import type { Prefab } from 'react-three-game/core';
-import level from './level.json';
-
-<GameCanvas>
-  <ambientLight intensity={1} />
-  <PrefabRoot data={level as Prefab} />
-  <mesh position={[3, 0, 0]}>
-    <boxGeometry />
-    <meshStandardMaterial color="orange" />
-  </mesh>
-</GameCanvas>
-```
+Build on the inline `level` above to compose JSX, gameplay, and shared resources.
+Import custom component registrations before mounting.
 
 ### With an existing R3F Canvas
 
@@ -139,7 +152,7 @@ import { WebGPURenderer } from 'three/webgpu';
 import { PrefabRoot } from 'react-three-game/viewer';
 import type { Prefab } from 'react-three-game/core';
 import './components';
-import level from './level.json';
+// Use the inline level from the first example.
 
 <Canvas gl={async ({ canvas }) => {
   const renderer = new WebGPURenderer({ canvas });
@@ -163,63 +176,56 @@ import { SceneRuntime, PrefabRoot } from 'react-three-game/viewer';
     <Gameplay /> {/* Can use usePrefab() for this document. */}
   </PrefabRoot>
   <PrefabRoot id="props" data={propsPrefab} />
-  {/* Sibling userland content shares runtime resources, not a prefab context. */}
+  {/* Each PrefabRoot supplies its own document context. */}
 </SceneRuntime>
 ```
 
 `GameCanvas` already supplies `SceneRuntime`; a standalone `PrefabRoot` supplies
-its own runtime when needed. These providers do not supply a game loop.
+its own runtime when needed. The host supplies gameplay state and simulation timing.
 
-No editor or window API is required. For visual authoring, mount `PrefabEditor`
+For visual authoring, mount `PrefabEditor`
 from `react-three-game/editor`; see the [editor guide](https://prnth.com/react-three-game/editor-scene-for-agents.md).
 
 ## Prefab conventions
 
-Annotated JSON below uses comments for teaching; omit comments in `.json` files.
+IDs are unique within a prefab. Component instance keys belong to the node;
+`type` selects a registered component. Add a transform to the inline box from
+the first example:
 
-```jsonc
-{
-  "root": {
-    "id": "world", // IDs are unique within this prefab.
-    "children": [{
-      "id": "box", // Keep IDs stable across edits.
-      "components": {
-        // Instance keys (left) can differ from registered type names (right).
-        "transform": {
-          "type": "Transform",
-          "properties": {
-            "position": [0, 1, 0], // Local to the parent; Y is up.
-            "rotation": [0, 0, 0], // XYZ Euler radians.
-            "scale": [1, 1, 1]     // Scaling also affects children and colliders.
-          }
-        },
-        "geometry": {
-          "type": "Geometry",
-          "properties": { "geometryType": "box", "args": [2, 1, 1] }
-        },
-        "material": { "type": "Material", "properties": { "name": "stone", "color": "#999999" } }
-      }
-    }]
-  }
-}
+```ts
+level.root.children![0].components!.transform = {
+  type: 'Transform', properties: {
+    position: [0, 1, 0], rotation: [0, 0.3, 0], scale: [2, 1, 1],
+  },
+};
 ```
+
+Run this while defining the document, before mounting. Y is up, rotations are XYZ
+Euler radians, and parent transforms also affect children and colliders.
 
 Common asset entries under `components`:
 
 ```jsonc
-// Model assets retain their embedded materials; a sibling Material won't override them.
+// Model assets use their embedded materials.
 "model": { "type": "Model", "properties": { "filename": "/models/tree.glb" } }
 
 // For primitive meshes: texture is the color map, normalMapTexture the normal map.
 "surface": { "type": "Material", "properties": { "texture": "/textures/stone.jpg" } }
 
-// Compose another scene document. Relative asset URLs resolve against basePath.
+// After exporting a shared assembly, reference its served URL.
 "building": { "type": "PrefabRef", "properties": { "url": "/prefabs/building.json" } }
 ```
 
 Use known asset URLs; remote assets need CORS. Validate loading in the browser.
 Keep one active Camera and Fog per scene. `CameraFollow` targets a local node;
 its offsets are world-space. Edit mode uses editor camera controls.
+
+## Edit saved prefab JSON
+
+Find the file the app loads through an import or prefab URL, then edit it directly.
+Preserve node IDs, component keys, and unrelated fields. Check JSON syntax,
+unique IDs, component schemas, and registration. Reload the editor/viewer from
+the changed file before continuing API edits, and inspect the result and diff.
 
 ## Scripted behavior
 
@@ -238,7 +244,7 @@ Add this entry under a node's `components`, through JSON or the editor API:
 
 `setup` returns optional cleanup; `update` receives seconds as `delta`. Both run
 while enabled in Play after preparation. Code changes restart setup; data changes
-do not. Use `context.data` for current inputs inside setup-created callbacks.
+keep the current state. Use `context.data` for current inputs inside setup-created callbacks.
 
 Scripts share `state` and receive `nodeId`, `node`, `object`, `data`, `prefab`,
 `events`, and `context`. They execute as trusted page code without React hooks.
@@ -250,7 +256,7 @@ Use application source for reusable behavior, React hooks, and new visual compon
 
 ### Settings only
 
-`name` and `properties` are required. `View` is optional; settings alone do not run behavior.
+`name` and `properties` define editable data. Add a `View` when behavior is needed.
 
 ```ts
 import { registerComponent, type Component } from 'react-three-game/viewer';
@@ -274,10 +280,10 @@ import { registerComponent, useNode, useGameObject,
 type SpinProps = { speed: number };
 function SpinView({ properties, enabled, children }: ComponentViewProps<SpinProps>) {
   const object = useGameObject();
-  const { editMode, preparing } = useNode();
+  const { editMode } = useNode();
   // Animate the live object; document writes are for authored edits.
   useFrame((_, delta) => {
-    if (enabled && !editMode && !preparing && object.transform) {
+    if (enabled && !editMode && object.transform) {
       object.transform.rotation.y += properties.speed * delta;
     }
   });
@@ -314,7 +320,7 @@ properties: {
     options: [{ value: 'walk', label: 'Walk' }, { value: 'run', label: 'Run' }],
   },
 },
-// View receives resolved defaults; don't duplicate them in the view.
+// View receives resolved defaults directly.
 // Ordinary fields get an inspector automatically.
 
 // Omit slot for ordinary behavior. When supplying a render-graph part:
@@ -329,7 +335,7 @@ For a custom inspector, in an editor-only module:
 import { registerComponentEditor } from 'react-three-game/editor';
 
 registerComponentEditor(Spin, SpinInspector); // App-defined component and inspector.
-// Keep this module out of runtime imports.
+// Import this module in your editor entrypoint.
 ```
 
 ## State and resources
@@ -369,7 +375,7 @@ const Stretch: Component<{ amount: number }> = {
 registerComponent(Stretch);
 ```
 
-Return a new owned geometry; leave the source untouched. Modifiers run in component
+Return an owned clone of the source geometry. Modifiers run in component
 order. The optional third argument supplies node scale as `context.scale`.
 
 ### Declare assets and share materials
