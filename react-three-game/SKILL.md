@@ -173,7 +173,7 @@ import { SceneRuntime, PrefabRoot } from 'react-three-game/viewer';
 
 <SceneRuntime>
   <PrefabRoot id="level" data={level}>
-    <Gameplay /> {/* Can use usePrefab() for this document. */}
+    <Gameplay /> {/* Can use usePrefabDocument() for authored edits. */}
   </PrefabRoot>
   <PrefabRoot id="props" data={propsPrefab} />
   {/* Each PrefabRoot supplies its own document context. */}
@@ -274,16 +274,16 @@ Add a `View` to use React hooks and the live node object. Return `children` to p
 
 ```tsx
 import { useFrame } from '@react-three/fiber';
-import { registerComponent, useNode, useGameObject,
+import { registerComponent, useComponentActive, useGameObject,
   type Component, type ComponentViewProps } from 'react-three-game/viewer';
 
 type SpinProps = { speed: number };
 function SpinView({ properties, enabled, children }: ComponentViewProps<SpinProps>) {
   const object = useGameObject();
-  const { editMode } = useNode();
+  const active = useComponentActive(enabled);
   // Animate the live object; document writes are for authored edits.
   useFrame((_, delta) => {
-    if (enabled && !editMode && object.transform) {
+    if (active && object.transform) {
       object.transform.rotation.y += properties.speed * delta;
     }
   });
@@ -324,9 +324,13 @@ properties: {
 // Ordinary fields get an inspector automatically.
 
 // Omit slot for ordinary behavior. When supplying a render-graph part:
-slot: 'geometry', // Or 'object' / 'material'; each slot is exclusive on its node.
-// Geometry gets an implicit mesh; object views supply their own render object.
-// The View must implement attachment and preserve children where appropriate.
+slot: 'geometry', // Or 'object' / 'material'; rendering role only.
+exclusive: 'geometry', // Competes with other components in this explicit group.
+category: 'mesh', // Editor grouping, independent of either field.
+// Geometry views compose their own mesh and geometry; material views attach inside them.
+// The View must implement attachment and preserve children.
+// For behavior, call useComponentActive(enabled) from /viewer and gate effects/useFrame.
+// Return cleanup from effects; mounting and activation are different lifetimes.
 ```
 
 For a custom inspector, in an editor-only module:
@@ -344,9 +348,10 @@ registerComponentEditor(Spin, SpinInspector); // App-defined component and inspe
 | --- | --- |
 | Current node object | `useGameObject()` |
 | Node/edit state | `useNode()` |
-| Document and local objects | `usePrefab()` |
+| Authored document | `usePrefabDocument()` |
+| Runtime objects and resources | `usePrefab()` |
 | Shared scene/mode | `useScene()` |
-| Serializable edit | Prefab mutations |
+| Serializable edit | `usePrefabDocument()` mutations |
 | View animation | Refs/live Three objects in R3F `useFrame` |
 | Gameplay simulation | Host-owned state and tick loop |
 | URL-backed chunk | `PrefabInstance` |

@@ -5,7 +5,7 @@ Use component properties for editable configuration. Keep gameplay state and sim
 `GameEvents` dispatches notifications synchronously. Component capabilities expose
 mounted behavior handles for direct calls and queries.
 
-For a known node in the same prefab, use `useGameObject(id)`: `.transform` reads the live Three object and `.getComponent(type)` reads its runtime handle. Omit the id for the current node. Both reads return null when unavailable. For notifications, use `useGameEvents().emit(name, payload)` and `useGameEvent(name, handler, deps)`.
+For a known node in the same prefab, use `useGameObject(id)`: `.transform` reads the live Three object and `.getComponent(type)` reads its runtime handle. Omit the id for the current node. Both reads return null when unavailable. For notifications, use `useGameEvents().emit(name, payload)` and `useGameEvent(name, handler)`; the handler reads current committed props without resubscribing on each render.
 
 When a system needs to query many nodes by capability:
 
