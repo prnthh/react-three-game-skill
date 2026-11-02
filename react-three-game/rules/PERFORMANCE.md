@@ -17,6 +17,9 @@ mount URL-backed chunks with `PrefabInstance` and keep old terrain active until
 replacements report `active`. `onStatus` reports preparation progress;
 `onActivate` signals gameplay readiness after mounting and shader compilation.
 Use `static` for immutable chunks and remount them to change placement or content.
+Author `ChunkSettings` on the enclosing scene root to partition static placements
+into cells and stage nearby preparation. Without it, prepare the whole prefab.
+World travel and tile-selection policies belong to the application.
 
 Profile preparation separately: React mounting, geometry work, and asset decoding
 can cost CPU time even when the final scene has few draw calls.

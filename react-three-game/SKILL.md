@@ -181,7 +181,8 @@ import { SceneRuntime, PrefabRoot } from 'react-three-game/viewer';
 ```
 
 `GameCanvas` already supplies `SceneRuntime`; a standalone `PrefabRoot` supplies
-its own runtime when needed. The host supplies gameplay state and simulation timing.
+its own runtime when needed. Node behavior may use component Views or Runtime scripts. The host supplies
+authoritative gameplay state and simulation timing.
 
 For visual authoring, mount `PrefabEditor`
 from `react-three-game/editor`; see the [editor guide](https://prnth.com/react-three-game/editor-scene-for-agents.md).
@@ -217,6 +218,9 @@ Common asset entries under `components`:
 ```
 
 Use known asset URLs; remote assets need CORS. Validate loading in the browser.
+Root-scoped components (`RenderSettings`, `PostProcessing`, `ClusteredLighting`,
+`ChunkSettings`) belong on the document root. Nested prefab copies inherit the
+outer scene configuration. Omitted render overrides retain Three.js/host defaults.
 Keep one active Camera and Fog per scene. `CameraFollow` targets a local node;
 its offsets are world-space. Edit mode uses editor camera controls.
 
@@ -323,6 +327,8 @@ properties: {
 // View receives resolved defaults directly.
 // Ordinary fields get an inspector automatically.
 
+// scope: 'scene' restricts renderer-wide configuration to the outer document root.
+// Omit scope for ordinary node components.
 // Omit slot for ordinary behavior. When supplying a render-graph part:
 slot: 'geometry', // Or 'object' / 'material'; rendering role only.
 exclusive: 'geometry', // Competes with other components in this explicit group.
