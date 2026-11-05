@@ -1,7 +1,7 @@
 # Performance
 
 Compare the same scene, camera path, resolution, and lighting in a production build.
-Measure startup, chunk transitions, steady frames, and memory after unloading.
+Measure startup, content changes, steady frames, and memory after unloading.
 
 - Animate live Three objects in `useFrame`; keep scratch vectors and input in refs.
 - Compatible leaf meshes with shared geometry/materials instance automatically.
@@ -12,14 +12,10 @@ Measure startup, chunk transitions, steady frames, and memory after unloading.
 - Start with one shadow caster. Cache shadows for static scenes; use cascades for
   moving outdoor views.
 
-Begin with inline prefabs and ordinary placement. When a world needs streaming,
-mount URL-backed chunks with `PrefabInstance` and keep old terrain active until
-replacements report `active`. `onStatus` reports preparation progress;
-`onActivate` signals gameplay readiness after mounting and shader compilation.
-Use `static` for immutable chunks and remount them to change placement or content.
-Author `ChunkSettings` on the enclosing scene root to partition static placements
-into cells and stage nearby preparation. Without it, prepare the whole prefab.
-World travel and tile-selection policies belong to the application.
+Use `PrefabRoot` for inline documents and `PrefabInstance` for URL-backed
+placements. Configure root `ChunkSettings` and static placements for distance-based
+streaming. Applications own world layout and travel policy. R3G shares assets and
+batches compatible meshes; Three.js handles frustum culling.
 
-Profile preparation separately: React mounting, geometry work, and asset decoding
+Profile mounting separately: React mounting, geometry work, and asset decoding
 can cost CPU time even when the final scene has few draw calls.

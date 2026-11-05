@@ -2,7 +2,24 @@
 
 Crashcat is an optional adapter that advances its own physics world from R3F frames. Keep application simulation timing in the host.
 
-Register `CrashcatPhysicsComponent` from `react-three-game/plugins/crashcat`. Mount one `CrashcatRuntime` inside `PrefabRoot` or `PrefabEditor`. Inspector controls are generated from the component schemas.
+Register the physics component and mount one runtime inside the prefab. The runtime
+advances physics in Play mode; component schemas supply inspector controls.
+
+```tsx
+import { GameCanvas, PrefabRoot, registerComponent } from 'react-three-game/viewer';
+import { CrashcatPhysicsComponent, CrashcatRuntime } from 'react-three-game/plugins/crashcat';
+
+registerComponent(CrashcatPhysicsComponent);
+
+// level is the app's prefab document.
+<GameCanvas>
+  <PrefabRoot data={level}>
+    <CrashcatRuntime />
+  </PrefabRoot>
+</GameCanvas>
+```
+
+For an editor, mount `CrashcatRuntime` as a child of `PrefabEditor`.
 
 Add physics alongside a node's visual components:
 
@@ -25,7 +42,7 @@ Add physics alongside a node's visual components:
 | `collisionEnterEventName`, `collisionExitEventName` | Collision event names |
 | `sensorEnterEventName`, `sensorExitEventName` | Sensor event names |
 
-Use `useGameObject()` (or pass a local node ID) and read `.getComponent(RIGID_BODY_COMPONENT)` from the Crashcat plugin inside the frame callback. It returns null until the body mounts; instance scoping is automatic. Drive active bodies through the Crashcat handle; use document edits for authored settings.
+Call `useGameObject()` (or pass a local node ID) in the component body. Inside the frame callback, read its `.getComponent(RIGID_BODY_COMPONENT)` handle; import `RIGID_BODY_COMPONENT` from the Crashcat plugin. It returns null until the body mounts; instance scoping is automatic. Drive active bodies through the Crashcat handle; use document edits for authored settings.
 
 Input/controller frame callbacks use priority `-2`, before the physics step at `-1`. Check Play mode and body availability. Reuse scratch vectors and keep input state in refs.
 
